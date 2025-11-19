@@ -62,6 +62,28 @@ macro_rules! create_interface {
                     },
                 }
             }
+
+            #[getter]
+            fn get_brain_rma(&self) -> f64 {
+                self.inner.brain_rma
+            }
+
+            #[getter]
+            fn get_plasma_rma(&self) -> f64 {
+                self.inner.plasma_rma
+            }
+
+            #[setter]
+            fn set_brain_rma(&mut self, value: f64) -> PyResult<()> {
+                self.inner.brain_rma = value;
+                Ok(())
+            }
+
+            #[setter]
+            fn set_plasma_rma(&mut self, value: f64) -> PyResult<()> {
+                self.inner.plasma_rma = value;
+                Ok(())
+            }
         }
     };
 }

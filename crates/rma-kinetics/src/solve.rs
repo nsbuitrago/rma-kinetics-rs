@@ -115,6 +115,13 @@ impl PySolution {
         PyArray1::from_vec(py, species)
     }
 
+    /// Get brain RMA array.
+    #[getter]
+    fn brain_rma<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        let species = get_common_species!(&self.inner, brain_rma);
+        PyArray1::from_vec(py, species)
+    }
+
     /// Returns the elapsed time in seconds
     fn elapsed_time(&self) -> f64 {
         self.inner.elapsed()

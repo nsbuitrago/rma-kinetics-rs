@@ -1,0 +1,39 @@
+[build-system]
+requires = ["maturin>=1.10,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "rma-kinetics"
+description = "Kinetic models of synthetic serum markers."
+license = { file = "LICENSE" }
+readme = "README.md"
+authors = [{ name = "Nicolas Buitrago", email = "mail@nsbuitrago.xyz" }]
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dynamic = ["version"]
+dependencies = [
+    "numpy>=2.2.6",
+]
+[project.optional-dependencies]
+tests = [
+    "pytest",
+]
+[tool.maturin]
+python-source = "python"
+manifest-path = "crates/rma-kinetics/Cargo.toml"
+module-name = "rma_kinetics._rma_kinetics"
+features = ["py"]
+profile = "release"
+editable-profile = "dev"
+
+[dependency-groups]
+tests = [
+    "pytest>=9.0.1",
+]
+docs = [
+    "mkdocs-material>=9.7.0",
+]

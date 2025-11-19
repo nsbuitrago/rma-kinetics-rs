@@ -1,0 +1,19 @@
+[package]
+name = "rma-kinetics"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "rma_kinetics"
+crate-type = ["cdylib"]
+
+[dependencies]
+differential-equations = { workspace = true }
+rma-kinetics-derive = { workspace = true }
+pyo3 = { workspace = true, optional = true }
+numpy = { workspace = true, optional = true }
+
+[features]
+py = ["dep:pyo3", "dep:numpy", "rma-kinetics-derive/py"]

@@ -1,0 +1,15 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Nicolas Buitrago <mail@nsbuitrago.xyz>"]
+edition = "2024"
+
+[workspace.dependencies]
+differential-equations = "0.5.1"
+pyo3 = "0.27.0"
+numpy = "0.27.0"
+rma-kinetics = { version = "0.1.0", path = "crates/rma-kinetics" }
+rma-kinetics-derive = { version = "0.1.0", path = "crates/rma-kinetics-derive" }

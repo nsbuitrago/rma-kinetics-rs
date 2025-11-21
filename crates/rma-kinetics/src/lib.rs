@@ -17,6 +17,7 @@
 //! ## Getting Started
 
 pub mod models;
+pub mod pk;
 mod solve;
 
 pub use solve::Solve;

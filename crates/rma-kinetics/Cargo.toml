@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 differential-equations = { workspace = true }
+thiserror = { workspace = true }
 rma-kinetics-derive = { workspace = true }
 pyo3 = { workspace = true, optional = true }
 numpy = { workspace = true, optional = true }

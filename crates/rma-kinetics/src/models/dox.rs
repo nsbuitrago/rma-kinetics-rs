@@ -1,7 +1,7 @@
 use std::ops::RangeInclusive;
 
 use crate::pk::Error;
-use differential_equations::{derive::State as StateTrait, ode::ODE};
+use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Matrix};
 use rma_kinetics_derive::Solve;
 
 const DOX_MW: f64 = 444.4; // g/mol
@@ -182,6 +182,14 @@ impl Model {
                 + brain_efflux;
         *dydt.brain_dox_mut() = plasma_efflux - brain_efflux;
     }
+
+    pub fn jacobian_with<S: DoxFields>(&self, _t: f64, _y: &S, j: &mut Matrix<f64>) {
+        j[(0, 0)] = -self.elimination - self.brain_transport;
+        j[(0, 1)] = self.plasma_transport;
+        j[(1, 0)] = self.brain_transport;
+        j[(1, 1)] = -self.plasma_transport;
+
+    }
 }
 
 impl Default for Model {
@@ -194,6 +202,10 @@ impl ODE<f64, State<f64>> for Model {
     fn diff(&self, t: f64, y: &State<f64>, dydt: &mut State<f64>) {
         self.diff_with(t, y, dydt);
     }
+
+    // fn jacobian(&self, t: f64, y: &State<f64>, j: &mut Matrix<f64>) {
+    //     self.jacobian_with(t, y, j);
+    // }
 }
 
 const DEFAULT_VEHICLE_INTAKE: f64 = 1.875e-4; // mg chow / hr (4.5 g chow / day)

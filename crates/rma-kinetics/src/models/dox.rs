@@ -144,7 +144,7 @@ impl PyState {
 }
 
 /// Dox PK model
-#[derive(Debug, Solve)]
+#[derive(Debug, Solve, Clone)]
 pub struct Model {
     pub vehicle_intake: f64,
     pub bioavailability: f64,
@@ -244,13 +244,13 @@ impl Default for ModelBuilder {
 
 impl ModelBuilder {
     /// Set the vehicle (food or water) intake rate (mg/hr)
-    pub fn vehicle_intake(&mut self, intake: f64) -> &Self {
+    pub fn vehicle_intake(&mut self, intake: f64) -> &mut Self {
         self.vehicle_intake = intake;
         self
     }
 
     /// Set the bioavailability of the vehicle (food or water) intake (0-1)
-    pub fn bioavailability(&mut self, bioavailability: f64) -> Result<&Self, Error> {
+    pub fn bioavailability(&mut self, bioavailability: f64) -> Result<&mut Self, Error> {
         if bioavailability < 0. || bioavailability > 1. {
             return Err(Error::InvalidBioavailability(bioavailability));
         }
@@ -260,37 +260,37 @@ impl ModelBuilder {
     }
 
     /// Set plasma absorption rate.
-    pub fn absorption(&mut self, absorption: f64) -> &Self {
+    pub fn absorption(&mut self, absorption: f64) -> &mut Self {
         self.absorption = absorption;
         self
     }
 
     /// Set plasma elimination rate.
-    pub fn elimination(&mut self, elimination: f64) -> &Self {
+    pub fn elimination(&mut self, elimination: f64) -> &mut Self {
         self.elimination = elimination;
         self
     }
 
     /// Set plasma to brain transport rate.
-    pub fn brain_transport(&mut self, transport: f64) -> &Self {
+    pub fn brain_transport(&mut self, transport: f64) -> &mut Self {
         self.brain_transport = transport;
         self
     }
 
     /// Set brain to plasma transport rate.
-    pub fn plasma_transport(&mut self, transport: f64) -> &Self {
+    pub fn plasma_transport(&mut self, transport: f64) -> &mut Self {
         self.plasma_transport = transport;
         self
     }
 
     /// Set the volume of distribution.
-    pub fn plasma_vd(&mut self, vd: f64) -> &Self {
+    pub fn plasma_vd(&mut self, vd: f64) -> &mut Self {
         self.plasma_vd = vd;
         self
     }
 
     /// Set dox administration schedules
-    pub fn schedule(&mut self, access_periods: Vec<AccessPeriod>) -> &Self {
+    pub fn schedule(&mut self, access_periods: Vec<AccessPeriod>) -> &mut Self {
         self.schedule.extend(access_periods);
         self
     }

@@ -208,19 +208,19 @@ impl ModelBuilder {
     }
 
     /// Set RMA production rate (concentration/time)
-    pub fn prod_rate(&mut self, rate: f64) -> &Self {
+    pub fn prod(&mut self, rate: f64) -> &mut Self {
         self.prod = rate;
         self
     }
 
     /// Set the blood-brain barrier transport rate (1/time)
-    pub fn bbb_transport_rate(&mut self, rate: f64) -> &Self {
+    pub fn bbb_transport(&mut self, rate: f64) -> &mut Self {
         self.bbb_transport = rate;
         self
     }
 
     /// Set the RMA degradation rate (1/time)
-    pub fn deg_rate(&mut self, rate: f64) -> &Self {
+    pub fn deg(&mut self, rate: f64) -> &mut Self {
         self.deg = rate;
         self
     }
@@ -266,7 +266,7 @@ mod tests {
 
     #[test]
     fn builder_pattern() {
-        let model = Model::builder().prod_rate(0.5).build();
+        let model = Model::builder().prod(0.5).bbb_transport(0.7).build();
         let mut solver = ExplicitRungeKutta::dopri5();
         let solution = model.solve(T0, TF, DT, State::default(), &mut solver);
 

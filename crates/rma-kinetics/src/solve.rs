@@ -1,5 +1,5 @@
 #[cfg(feature = "py")]
-use pyo3::{Bound, FromPyObject, Python, pyclass, pymethods};
+use pyo3::{Bound, FromPyObject, PyResult, Python, exceptions::PyValueError, pyclass, pymethods};
 
 #[cfg(feature = "py")]
 use numpy::PyArray1;
@@ -11,6 +11,10 @@ use differential_equations::{
 
 #[cfg(feature = "py")]
 pub use crate::models::constitutive;
+#[cfg(feature = "py")]
+pub use crate::models::dox;
+#[cfg(feature = "py")]
+pub use crate::models::tetoff;
 
 pub trait Solve {
     type State: traits::State<f64>;
@@ -60,25 +64,64 @@ pub struct PySolver {
 #[cfg(feature = "py")]
 pub enum InnerSolution {
     Constitutive(Solution<f64, constitutive::State<f64>>),
+    Dox(Solution<f64, dox::State<f64>>),
+    TetOff(Solution<f64, tetoff::State<f64>>),
 }
 
-// A macro to access any field that exists on ALL InnerSolution variants
+/// Trait for accessing the states vector from Solution types with different State types.
+/// This allows type-safe access to the `y` field which contains different State types
+/// across different Solution variants.
+#[cfg(feature = "py")]
+trait SolutionAccess {
+    /// Get a reference to the states vector.
+    /// The return type is a reference to Vec<State<f64>> where State varies by implementation.
+    fn states(&self) -> &Vec<Self::StateType>
+    where
+        Self: Sized;
+
+    /// Associated type for the State type in this Solution.
+    type StateType: traits::State<f64>;
+}
+
+#[cfg(feature = "py")]
+impl SolutionAccess for Solution<f64, constitutive::State<f64>> {
+    type StateType = constitutive::State<f64>;
+
+    fn states(&self) -> &Vec<constitutive::State<f64>> {
+        &self.y
+    }
+}
+
+#[cfg(feature = "py")]
+impl SolutionAccess for Solution<f64, dox::State<f64>> {
+    type StateType = dox::State<f64>;
+
+    fn states(&self) -> &Vec<dox::State<f64>> {
+        &self.y
+    }
+}
+
+#[cfg(feature = "py")]
+impl SolutionAccess for Solution<f64, tetoff::State<f64>> {
+    type StateType = tetoff::State<f64>;
+
+    fn states(&self) -> &Vec<tetoff::State<f64>> {
+        &self.y
+    }
+}
+
+// A macro to access fields that exist on ALL InnerSolution variants with the same type.
+// For fields with different types (like the `y` field containing different State types),
+// use the SolutionAccess trait's `states()` method instead.
 #[cfg(feature = "py")]
 macro_rules! access_field {
     ($self:expr, $field:ident) => {
         match $self {
             InnerSolution::Constitutive(s) => &s.$field,
+            InnerSolution::Dox(s) => &s.$field,
+            InnerSolution::TetOff(s) => &s.$field,
         }
     };
-}
-
-// A macro to access plasma RMA on InnerSolution variants
-#[cfg(feature = "py")]
-macro_rules! get_common_species {
-    ($self:expr, $species:ident) => {{
-        let ys = access_field!($self, y);
-        ys.iter().map(|state| state.$species).collect::<Vec<f64>>()
-    }};
 }
 
 #[cfg(feature = "py")]
@@ -110,16 +153,123 @@ impl PySolution {
 
     /// Get plasma RMA array.
     #[getter]
-    fn plasma_rma<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
-        let species = get_common_species!(&self.inner, plasma_rma);
-        PyArray1::from_vec(py, species)
+    fn plasma_rma<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        // let species = get_common_species!(&self.inner, plasma_rma);
+        let plasma_rma = match &self.inner {
+            InnerSolution::Constitutive(s) => s
+                .states()
+                .iter()
+                .map(|state| state.plasma_rma)
+                .collect::<Vec<f64>>(),
+            InnerSolution::Dox(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma RMA is not available for the dox model",
+                ));
+            }
+            InnerSolution::TetOff(s) => s
+                .states()
+                .iter()
+                .map(|state| state.plasma_rma)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, plasma_rma))
     }
 
     /// Get brain RMA array.
     #[getter]
-    fn brain_rma<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
-        let species = get_common_species!(&self.inner, brain_rma);
-        PyArray1::from_vec(py, species)
+    fn brain_rma<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let brain_rma = match &self.inner {
+            InnerSolution::Constitutive(s) => s
+                .states()
+                .iter()
+                .map(|state| state.brain_rma)
+                .collect::<Vec<f64>>(),
+            InnerSolution::Dox(_) => {
+                return Err(PyValueError::new_err(
+                    "brain RMA is not available for the dox model",
+                ));
+            }
+            InnerSolution::TetOff(s) => s
+                .states()
+                .iter()
+                .map(|state| state.brain_rma)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, brain_rma))
+    }
+
+    /// Get tTA array.
+    #[getter]
+    fn tta<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let tta = match &self.inner {
+            InnerSolution::Constitutive(_) => {
+                return Err(PyValueError::new_err(
+                    "tTA is not available for the constitutive model",
+                ));
+            }
+            InnerSolution::Dox(_) => {
+                return Err(PyValueError::new_err(
+                    "tTA is not available for the dox model",
+                ));
+            }
+            InnerSolution::TetOff(s) => s
+                .states()
+                .iter()
+                .map(|state| state.tta)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, tta))
+    }
+
+    /// Get plasma dox array.
+    #[getter]
+    fn plasma_dox<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let plasma_dox = match &self.inner {
+            InnerSolution::Constitutive(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma dox is not available for the constitutive model",
+                ));
+            }
+            InnerSolution::Dox(s) => s
+                .states()
+                .iter()
+                .map(|state| state.plasma_dox)
+                .collect::<Vec<f64>>(),
+            InnerSolution::TetOff(s) => s
+                .states()
+                .iter()
+                .map(|state| state.plasma_dox)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, plasma_dox))
+    }
+
+    /// Get brain dox array.
+    #[getter]
+    fn brain_dox<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let brain_dox = match &self.inner {
+            InnerSolution::Constitutive(_) => {
+                return Err(PyValueError::new_err(
+                    "brain dox is not available for the constitutive model",
+                ));
+            }
+            InnerSolution::Dox(s) => s
+                .states()
+                .iter()
+                .map(|state| state.brain_dox)
+                .collect::<Vec<f64>>(),
+            InnerSolution::TetOff(s) => s
+                .states()
+                .iter()
+                .map(|state| state.brain_dox)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, brain_dox))
     }
 
     /// Returns the elapsed time in seconds

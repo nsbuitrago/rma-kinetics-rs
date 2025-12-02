@@ -4,7 +4,7 @@ default:
 rs-test:
     @cargo t
 
-py-test:
+py-test: py-dev
     @uv run pytest
 
 py-dev:

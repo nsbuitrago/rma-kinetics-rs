@@ -2,6 +2,13 @@ use crate::models::dox::{DoxFields, Model as DoxModel};
 use differential_equations::{derive::State as StateTrait, ode::ODE};
 use rma_kinetics_derive::Solve;
 
+#[cfg(feature = "py")]
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+
+#[cfg(feature = "py")]
+use rma_kinetics_derive::PySolve;
+
+/// Tet-Off model state.
 #[derive(StateTrait)]
 pub struct State<T> {
     pub brain_rma: T,
@@ -53,6 +60,83 @@ impl DoxFields for State<f64> {
     }
 }
 
+#[cfg(feature = "py")]
+#[pyclass(name = "State")]
+#[derive(Clone)]
+pub struct PyState {
+    pub inner: State<f64>,
+}
+
+#[cfg(feature = "py")]
+#[pymethods]
+impl PyState {
+    #[new]
+    #[pyo3(signature = (brain_rma=0., plasma_rma=0., tta=0., brain_dox=0., plasma_dox=0.))]
+    pub fn new(brain_rma: f64, plasma_rma: f64, tta: f64, brain_dox: f64, plasma_dox: f64) -> Self {
+        Self {
+            inner: State::new(brain_rma, plasma_rma, tta, brain_dox, plasma_dox),
+        }
+    }
+
+    #[getter]
+    fn get_brain_rma(&self) -> f64 {
+        self.inner.brain_rma
+    }
+
+    #[getter]
+    fn get_plasma_rma(&self) -> f64 {
+        self.inner.plasma_rma
+    }
+
+    #[getter]
+    fn get_tta(&self) -> f64 {
+        self.inner.tta
+    }
+
+    #[getter]
+    fn get_brain_dox(&self) -> f64 {
+        self.inner.brain_dox
+    }
+
+    #[getter]
+    fn get_plasma_dox(&self) -> f64 {
+        self.inner.plasma_dox
+    }
+
+    #[setter]
+    fn set_brain_rma(&mut self, value: f64) -> PyResult<()> {
+        self.inner.brain_rma = value;
+        Ok(())
+    }
+
+    #[setter]
+    fn set_plasma_rma(&mut self, value: f64) -> PyResult<()> {
+        self.inner.plasma_rma = value;
+        Ok(())
+    }
+
+    #[setter]
+    fn set_tta(&mut self, value: f64) -> PyResult<()> {
+        self.inner.tta = value;
+        Ok(())
+    }
+
+    #[setter]
+    fn set_brain_dox(&mut self, value: f64) -> PyResult<()> {
+        self.inner.brain_dox = value;
+        Ok(())
+    }
+
+    #[setter]
+    fn set_plasma_dox(&mut self, value: f64) -> PyResult<()> {
+        self.inner.plasma_dox = value;
+        Ok(())
+    }
+}
+
+#[cfg_attr(feature = "py", pyclass)]
+#[cfg_attr(feature = "py", derive(PySolve))]
+#[cfg_attr(feature = "py", py_solve(variant = "TetOff"))]
 #[derive(Solve)]
 pub struct Model {
     pub rma_prod: f64,
@@ -67,6 +151,64 @@ pub struct Model {
     pub dox_tta_kd: f64,
 }
 
+const DEFAULT_RMA_PROD: f64 = 0.2;
+const DEFAULT_LEAKY_RMA_PROD: f64 = 0.002;
+const DEFAULT_RMA_BBB_TRANSPORT: f64 = 0.6;
+const DEFAULT_RMA_DEG: f64 = 0.007;
+const DEFAULT_TTA_PROD: f64 = 10.;
+const DEFAULT_TTA_DEG: f64 = 1.;
+const DEFAULT_TTA_KD: f64 = 10.;
+const DEFAULT_TTA_COOPERATIVITY: f64 = 2.;
+const DEFAULT_DOX_TTA_KD: f64 = 10.;
+
+#[cfg(feature = "py")]
+#[pymethods]
+impl Model {
+    #[new]
+    #[pyo3(signature = (rma_prod=DEFAULT_RMA_PROD, leaky_rma_prod=DEFAULT_LEAKY_RMA_PROD, rma_bbb_transport=DEFAULT_RMA_BBB_TRANSPORT, rma_deg=DEFAULT_RMA_DEG, tta_prod=DEFAULT_TTA_PROD, tta_deg=DEFAULT_TTA_DEG, tta_kd=DEFAULT_TTA_KD, tta_cooperativity=DEFAULT_TTA_COOPERATIVITY, dox_pk_model=DoxModel::default(), dox_tta_kd=DEFAULT_DOX_TTA_KD))]
+    pub fn create(
+        rma_prod: f64,
+        leaky_rma_prod: f64,
+        rma_bbb_transport: f64,
+        rma_deg: f64,
+        tta_prod: f64,
+        tta_deg: f64,
+        tta_kd: f64,
+        tta_cooperativity: f64,
+        dox_pk_model: DoxModel,
+        dox_tta_kd: f64,
+    ) -> Self {
+        Self {
+            rma_prod,
+            leaky_rma_prod,
+            rma_bbb_transport,
+            rma_deg,
+            tta_prod,
+            tta_deg,
+            tta_kd,
+            tta_cooperativity,
+            dox_pk_model,
+            dox_tta_kd,
+        }
+    }
+
+    #[pyo3(name = "solve")]
+    fn py_solve(
+        &self,
+        t0: f64,
+        tf: f64,
+        dt: f64,
+        init_state: PyState,
+        solver: crate::solve::PySolver,
+    ) -> PyResult<crate::solve::PySolution> {
+        let result = crate::solve::PySolve::solve(self, t0, tf, dt, init_state.inner, solver);
+        match result {
+            Ok(solution) => Ok(solution),
+            Err(e) => Err(PyValueError::new_err("Failed to solve")), // TODO: add context from e
+        }
+    }
+}
+
 impl Model {
     /// Create a new Tet-Off model builder.
     pub fn builder() -> ModelBuilder {
@@ -79,7 +221,8 @@ impl ODE<f64, State<f64>> for Model {
         // tet inducible RMA expression
         let active_tta = 1. / (1. + y.brain_dox / self.dox_tta_kd);
         let tta_hill = (active_tta * y.tta / self.tta_kd).powf(self.tta_cooperativity);
-        dydt.brain_rma = (self.leaky_rma_prod + (self.rma_prod * tta_hill)) / (1. + tta_hill) - (self.rma_bbb_transport * y.brain_rma);
+        dydt.brain_rma = (self.leaky_rma_prod + (self.rma_prod * tta_hill)) / (1. + tta_hill)
+            - (self.rma_bbb_transport * y.brain_rma);
 
         let brain_efflux = self.rma_bbb_transport * y.brain_rma;
         dydt.plasma_rma = brain_efflux - (self.rma_deg * y.plasma_rma);
@@ -97,16 +240,6 @@ impl Default for Model {
         ModelBuilder::default().build()
     }
 }
-
-const DEFAULT_RMA_PROD: f64 = 0.2;
-const DEFAULT_LEAKY_RMA_PROD: f64 = 0.002;
-const DEFAULT_RMA_BBB_TRANSPORT: f64 = 0.6;
-const DEFAULT_RMA_DEG: f64 = 0.007;
-const DEFAULT_TTA_PROD: f64 = 10.;
-const DEFAULT_TTA_DEG: f64 = 1.;
-const DEFAULT_TTA_KD: f64 = 10.;
-const DEFAULT_TTA_COOPERATIVITY: f64 = 2.;
-const DEFAULT_DOX_TTA_KD: f64 = 10.;
 
 /// Tet-Off model builder.
 pub struct ModelBuilder {
@@ -198,7 +331,6 @@ impl ModelBuilder {
     pub fn dox_tta_kd(&mut self, dox_tta_kd: f64) -> &mut Self {
         self.dox_tta_kd = dox_tta_kd;
         self
-
     }
 
     /// Build the Tet-Off model
@@ -225,7 +357,6 @@ mod tests {
     use crate::solve::Solve;
     use differential_equations::methods::ExplicitRungeKutta;
 
-
     #[test]
     fn state_creation() {
         let zero_state = State::zeros();
@@ -251,7 +382,9 @@ mod tests {
 
         // custom model
         let dox_access_period = AccessPeriod::new(40., 0.0..=24.);
-        let custom_dox_model = DoxModel::builder().schedule(vec![dox_access_period]).build();
+        let custom_dox_model = DoxModel::builder()
+            .schedule(vec![dox_access_period])
+            .build();
         let custom_model = Model::builder()
             .rma_prod(0.5)
             .dox_pk_model(custom_dox_model)
@@ -278,7 +411,9 @@ mod tests {
 
         // custom model with dox administration
         let dox_access_period = AccessPeriod::new(40., 0.0..=24.);
-        let custom_dox_model = DoxModel::builder().schedule(vec![dox_access_period]).build();
+        let custom_dox_model = DoxModel::builder()
+            .schedule(vec![dox_access_period])
+            .build();
         let custom_model = Model::builder().dox_pk_model(custom_dox_model).build();
         let solution = custom_model.solve(0., 36., 1., init_state, &mut solver);
         assert!(solution.is_ok());
@@ -290,5 +425,4 @@ mod tests {
 
         assert_eq!(unwrapped_solution.y.len(), 37);
     }
-
 }

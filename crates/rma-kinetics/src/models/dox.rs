@@ -1,13 +1,19 @@
-use std::ops::RangeInclusive;
-
 use crate::pk::Error;
 use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Matrix};
 use rma_kinetics_derive::Solve;
+use std::ops::RangeInclusive;
+
+#[cfg(feature = "py")]
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pyfunction, pymethods};
+
+#[cfg(feature = "py")]
+use rma_kinetics_derive::PySolve;
 
 const DOX_MW: f64 = 444.4; // g/mol
 
 /// Defines the concentration and period of access of dox food or water.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "py", pyclass(name = "AccessPeriod"))]
 pub struct AccessPeriod {
     pub dose: f64,
     pub time: RangeInclusive<f64>,
@@ -20,14 +26,50 @@ impl AccessPeriod {
     }
 }
 
+#[cfg(feature = "py")]
+#[pymethods]
+impl AccessPeriod {
+    #[new]
+    pub fn create(dose: f64, start_time: f64, stop_time: f64) -> Self {
+        let time = start_time..=stop_time;
+        Self::new(dose, time)
+    }
+
+    #[getter]
+    fn get_dose(&self) -> f64 {
+        self.dose
+    }
+
+    #[getter]
+    fn get_start_time(&self) -> f64 {
+        *self.time.start()
+    }
+
+    #[getter]
+    fn get_stop_time(&self) -> f64 {
+        *self.time.end()
+    }
+}
+
 /// Create a dox schedule given a dose, start time, duration of the access period, interval between access periods, and number of repeated administrations.
-pub fn create_dox_schedule(doses: f64, start_time: f64, duration: f64, repeat: Option<usize>, interval: Option<f64>) -> Vec<AccessPeriod> {
+#[cfg_attr(feature = "py", pyfunction)]
+#[cfg_attr(feature = "py", pyo3(signature = (doses, start_time, duration, repeat=None, interval=None)))]
+pub fn create_dox_schedule(
+    doses: f64,
+    start_time: f64,
+    duration: f64,
+    repeat: Option<usize>,
+    interval: Option<f64>,
+) -> Vec<AccessPeriod> {
     let mut schedule = Vec::new();
     let mut current_time = start_time;
     let interval = interval.unwrap_or(0.);
 
     for _ in 0..repeat.unwrap_or(0) + 1 {
-        schedule.push(AccessPeriod::new(doses, current_time..=current_time + duration));
+        schedule.push(AccessPeriod::new(
+            doses,
+            current_time..=current_time + duration,
+        ));
         current_time += duration + interval;
     }
 
@@ -66,42 +108,13 @@ impl Default for State<f64> {
     }
 }
 
-/// Trait for types that contain dox-related fields.
-/// This enables the Dox model to use any state type that provides
-/// plasma and brain dox concentrations without manual state construction.
-pub trait DoxFields {
-    fn plasma_dox(&self) -> f64;
-    fn brain_dox(&self) -> f64;
-    fn plasma_dox_mut(&mut self) -> &mut f64;
-    fn brain_dox_mut(&mut self) -> &mut f64;
-}
-
-impl DoxFields for State<f64> {
-    fn plasma_dox(&self) -> f64 {
-        self.plasma_dox
-    }
-
-    fn brain_dox(&self) -> f64 {
-        self.brain_dox
-    }
-
-    fn plasma_dox_mut(&mut self) -> &mut f64 {
-        &mut self.plasma_dox
-    }
-
-    fn brain_dox_mut(&mut self) -> &mut f64 {
-        &mut self.brain_dox
-    }
-}
-
 #[cfg(feature = "py")]
-#[derive(Clone)]
 #[pyclass(name = "State")]
+#[derive(Clone)]
 pub struct PyState {
     pub inner: State<f64>,
 }
 
-/// Dox state
 #[cfg(feature = "py")]
 #[pymethods]
 impl PyState {
@@ -143,7 +156,38 @@ impl PyState {
     }
 }
 
+/// Trait for types that contain dox-related fields.
+/// This enables the Dox model to use any state type that provides
+/// plasma and brain dox concentrations without manual state construction.
+pub trait DoxFields {
+    fn plasma_dox(&self) -> f64;
+    fn brain_dox(&self) -> f64;
+    fn plasma_dox_mut(&mut self) -> &mut f64;
+    fn brain_dox_mut(&mut self) -> &mut f64;
+}
+
+impl DoxFields for State<f64> {
+    fn plasma_dox(&self) -> f64 {
+        self.plasma_dox
+    }
+
+    fn brain_dox(&self) -> f64 {
+        self.brain_dox
+    }
+
+    fn plasma_dox_mut(&mut self) -> &mut f64 {
+        &mut self.plasma_dox
+    }
+
+    fn brain_dox_mut(&mut self) -> &mut f64 {
+        &mut self.brain_dox
+    }
+}
+
 /// Dox PK model
+#[cfg_attr(feature = "py", pyclass)]
+#[cfg_attr(feature = "py", derive(PySolve))]
+#[cfg_attr(feature = "py", py_solve(variant = "Dox"))]
 #[derive(Debug, Solve, Clone)]
 pub struct Model {
     pub vehicle_intake: f64,
@@ -157,14 +201,77 @@ pub struct Model {
     pub dose_concentration: Vec<f64>,
 }
 
-impl Model {
+const DEFAULT_VEHICLE_INTAKE: f64 = 1.875e-4; // mg chow / hr (4.5 g chow / day)
+const DEFAULT_BIOAVAILABILITY: f64 = 0.9;
+const DEFAULT_ABSORPTION: f64 = 0.8;
+const DEFAULT_ELIMINATION: f64 = 0.2;
+const DEFAULT_BRAIN_TRANSPORT: f64 = 0.2;
+const DEFAULT_PLASMA_TRANSPORT: f64 = 1.0;
+const DEFAULT_PLASMA_VD: f64 = 0.21;
 
+#[cfg(feature = "py")]
+#[pymethods]
+impl Model {
+    #[new]
+    #[pyo3(signature = (vehicle_intake=DEFAULT_VEHICLE_INTAKE, bioavailability=DEFAULT_BIOAVAILABILITY, absorption=DEFAULT_ABSORPTION, elimination=DEFAULT_ELIMINATION, brain_transport=DEFAULT_BRAIN_TRANSPORT, plasma_transport=DEFAULT_PLASMA_TRANSPORT, plasma_vd=DEFAULT_PLASMA_VD, schedule=Vec::new()))]
+    pub fn create(
+        vehicle_intake: f64,
+        bioavailability: f64,
+        absorption: f64,
+        elimination: f64,
+        brain_transport: f64,
+        plasma_transport: f64,
+        plasma_vd: f64,
+        schedule: Vec<AccessPeriod>,
+    ) -> Self {
+        let dose_concentration = schedule
+            .iter()
+            .map(|period| {
+                period.dose * bioavailability * vehicle_intake / (DOX_MW * plasma_vd) * 1e6
+            })
+            .collect();
+
+        Self {
+            vehicle_intake,
+            bioavailability,
+            absorption,
+            elimination,
+            brain_transport,
+            plasma_transport,
+            plasma_vd,
+            schedule,
+            dose_concentration,
+        }
+    }
+
+    #[pyo3(name = "solve")]
+    fn py_solve(
+        &self,
+        t0: f64,
+        tf: f64,
+        dt: f64,
+        init_state: PyState,
+        solver: crate::solve::PySolver,
+    ) -> PyResult<crate::solve::PySolution> {
+        let result = crate::solve::PySolve::solve(self, t0, tf, dt, init_state.inner, solver);
+        match result {
+            Ok(solution) => Ok(solution),
+            Err(e) => Err(PyValueError::new_err("Failed to solve")), // TODO: add context from e
+        }
+    }
+}
+
+impl Model {
     /// Create a new dox model builder.
     pub fn builder() -> ModelBuilder {
         ModelBuilder::default()
     }
 
     fn intake(&self, t: f64) -> f64 {
+        if self.schedule.is_empty() {
+            return 0.;
+        }
+
         self.schedule
             .iter()
             .enumerate()
@@ -177,9 +284,10 @@ impl Model {
     pub fn diff_with<S: DoxFields>(&self, t: f64, y: &S, dydt: &mut S) {
         let plasma_efflux = self.brain_transport * y.plasma_dox();
         let brain_efflux = self.plasma_transport * y.brain_dox();
-        *dydt.plasma_dox_mut() =
-            (self.absorption * self.intake(t)) - (self.elimination * y.plasma_dox()) - plasma_efflux
-                + brain_efflux;
+        *dydt.plasma_dox_mut() = (self.absorption * self.intake(t))
+            - (self.elimination * y.plasma_dox())
+            - plasma_efflux
+            + brain_efflux;
         *dydt.brain_dox_mut() = plasma_efflux - brain_efflux;
     }
 
@@ -188,7 +296,6 @@ impl Model {
         j[(0, 1)] = self.plasma_transport;
         j[(1, 0)] = self.brain_transport;
         j[(1, 1)] = -self.plasma_transport;
-
     }
 }
 
@@ -202,19 +309,7 @@ impl ODE<f64, State<f64>> for Model {
     fn diff(&self, t: f64, y: &State<f64>, dydt: &mut State<f64>) {
         self.diff_with(t, y, dydt);
     }
-
-    // fn jacobian(&self, t: f64, y: &State<f64>, j: &mut Matrix<f64>) {
-    //     self.jacobian_with(t, y, j);
-    // }
 }
-
-const DEFAULT_VEHICLE_INTAKE: f64 = 1.875e-4; // mg chow / hr (4.5 g chow / day)
-const DEFAULT_BIOAVAILABILITY: f64 = 0.9;
-const DEFAULT_ABSORPTION: f64 = 0.8;
-const DEFAULT_ELIMINATION: f64 = 0.2;
-const DEFAULT_BRAIN_TRANSPORT: f64 = 0.2;
-const DEFAULT_PLASMA_TRANSPORT: f64 = 1.0;
-const DEFAULT_PLASMA_VD: f64 = 0.21;
 
 pub struct ModelBuilder {
     pub vehicle_intake: f64,
@@ -319,12 +414,11 @@ impl ModelBuilder {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use differential_equations::methods::ExplicitRungeKutta;
     use crate::solve::Solve;
+    use differential_equations::methods::ExplicitRungeKutta;
 
     #[test]
     fn dox_access_period_creation() {
@@ -377,7 +471,9 @@ mod tests {
         let default_model = Model::default();
         assert_eq!(default_model.schedule.len(), 0); // no schedule set for the default model
 
-        let model_with_schedule = Model::builder().schedule(vec![AccessPeriod::new(40., 0.0..=24.)]).build();
+        let model_with_schedule = Model::builder()
+            .schedule(vec![AccessPeriod::new(40., 0.0..=24.)])
+            .build();
         assert_eq!(model_with_schedule.schedule.len(), 1);
         assert_eq!(model_with_schedule.absorption, DEFAULT_ABSORPTION);
     }
@@ -394,7 +490,9 @@ mod tests {
         assert_eq!(unwrapped_solution.y.last().unwrap().brain_dox, 0.);
 
         // add dox administration period
-        let custom_model = Model::builder().schedule(vec![AccessPeriod::new(40., 0.0..=24.)]).build();
+        let custom_model = Model::builder()
+            .schedule(vec![AccessPeriod::new(40., 0.0..=24.)])
+            .build();
         let solution = custom_model.solve(0., 24., 1., init_state, &mut solver);
         assert!(solution.is_ok());
         let unwrapped_solution = solution.unwrap();

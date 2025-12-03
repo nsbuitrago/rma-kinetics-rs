@@ -1520,7 +1520,6 @@ name = "rma-kinetics"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "matplotlib" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
@@ -1533,6 +1532,7 @@ tests = [
 [package.dev-dependencies]
 dev = [
     { name = "marimo" },
+    { name = "matplotlib" },
 ]
 docs = [
     { name = "mkdocs-material" },
@@ -1543,13 +1543,15 @@ tests = [
 
 [package.metadata]
 requires-dist = [
-    { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "pytest", marker = "extra == 'tests'" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "marimo", specifier = ">=0.18.1" }]
+dev = [
+    { name = "marimo", specifier = ">=0.18.1" },
+    { name = "matplotlib", specifier = ">=3.10.7" },
+]
 docs = [{ name = "mkdocs-material", specifier = ">=9.7.0" }]
 tests = [{ name = "pytest", specifier = ">=9.0.1" }]
 

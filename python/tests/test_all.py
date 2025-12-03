@@ -141,3 +141,70 @@ def test_tetoff_solve():
     # test other solvers
     # solver = solvers.Kvaerno3()
     # model.solve(T0, T1, DT, state, solver)
+
+def test_cno_dose_creation():
+    dose = models.cno.Dose(0.03, 0)
+    assert dose.mg == 0.03
+    assert dose.time == 0
+
+    dose.mg = 0.04
+    assert dose.mg == 0.04
+
+    dose.time = 1
+    assert dose.time == 1
+
+    dose_schedule = models.cno.create_cno_schedule(0.03, 0)
+    assert len(dose_schedule) == 1
+
+    repeated_dose_schedule = models.cno.create_cno_schedule(0.03, 0, repeat=1, interval=24)
+    assert len(repeated_dose_schedule) == 2
+    assert repeated_dose_schedule[0].mg == 0.03
+    assert repeated_dose_schedule[0].time == 0
+    assert repeated_dose_schedule[1].time == 24
+
+def test_cno_state_creation():
+    state = models.cno.State()
+    assert state.peritoneal_cno == 0
+    assert state.plasma_cno == 0
+    assert state.brain_cno == 0
+    assert state.plasma_clz == 0
+    assert state.brain_clz == 0
+
+    custom_state = models.cno.State(peritoneal_cno=10, plasma_cno=20, brain_cno=30, plasma_clz=40, brain_clz=50)
+    assert custom_state.peritoneal_cno == 10
+    assert custom_state.plasma_cno == 20
+    assert custom_state.brain_cno == 30
+    assert custom_state.plasma_clz == 40
+    assert custom_state.brain_clz == 50
+
+    custom_state.peritoneal_cno = 15
+    assert custom_state.peritoneal_cno == 15
+
+def test_cno_model_creation():
+    dose = models.cno.Dose(0.03, 0)
+    model = models.cno.Model([dose])
+
+    assert len(model.doses) == 1
+
+    # custom model
+    custom_model = models.cno.Model([dose], cno_absorption=25)
+    assert custom_model.cno_absorption == 25
+
+    # model with schedule
+    schedule = models.cno.create_cno_schedule(0.03, 0, repeat=1, interval=24)
+    model_with_schedule = models.cno.Model(schedule)
+    assert len(model_with_schedule.doses) == 2
+
+def test_cno_model_simulation():
+    cno_dose = models.cno.Dose(0.03, 0)
+    # default model - dose (0.03 mg) applied at t=0
+    cno_model = models.cno.Model()
+    cno_state = models.cno.State()
+    solver = solvers.Dopri5()
+
+    solution = cno_model.solve(T0, T1, DT, cno_state, solver)
+    assert solution.peritoneal_cno.shape == (T1+1,)
+
+    # test other solvers
+    # solver = solvers.Kvaerno3()
+    # cno_model.solve(T0, T1, DT, cno_state, solver)

@@ -10,6 +10,8 @@ use differential_equations::{
 };
 
 #[cfg(feature = "py")]
+pub use crate::models::cno;
+#[cfg(feature = "py")]
 pub use crate::models::constitutive;
 #[cfg(feature = "py")]
 pub use crate::models::dox;
@@ -23,7 +25,7 @@ pub trait Solve {
         &self,
         t0: f64,
         tf: f64,
-        sample_rate: f64,
+        dt: f64,
         init_state: Self::State,
         solver: &mut S,
     ) -> Result<Solution<f64, Self::State>, Error<f64, Self::State>>
@@ -66,6 +68,7 @@ pub enum InnerSolution {
     Constitutive(Solution<f64, constitutive::State<f64>>),
     Dox(Solution<f64, dox::State<f64>>),
     TetOff(Solution<f64, tetoff::State<f64>>),
+    CNO(Solution<f64, cno::State<f64>>),
 }
 
 /// Trait for accessing the states vector from Solution types with different State types.
@@ -110,6 +113,15 @@ impl SolutionAccess for Solution<f64, tetoff::State<f64>> {
     }
 }
 
+#[cfg(feature = "py")]
+impl SolutionAccess for Solution<f64, cno::State<f64>> {
+    type StateType = cno::State<f64>;
+
+    fn states(&self) -> &Vec<cno::State<f64>> {
+        &self.y
+    }
+}
+
 // A macro to access fields that exist on ALL InnerSolution variants with the same type.
 // For fields with different types (like the `y` field containing different State types),
 // use the SolutionAccess trait's `states()` method instead.
@@ -120,6 +132,7 @@ macro_rules! access_field {
             InnerSolution::Constitutive(s) => &s.$field,
             InnerSolution::Dox(s) => &s.$field,
             InnerSolution::TetOff(s) => &s.$field,
+            InnerSolution::CNO(s) => &s.$field,
         }
     };
 }
@@ -171,6 +184,11 @@ impl PySolution {
                 .iter()
                 .map(|state| state.plasma_rma)
                 .collect::<Vec<f64>>(),
+            InnerSolution::CNO(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma RMA is not available for the cno model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, plasma_rma))
@@ -195,6 +213,11 @@ impl PySolution {
                 .iter()
                 .map(|state| state.brain_rma)
                 .collect::<Vec<f64>>(),
+            InnerSolution::CNO(_) => {
+                return Err(PyValueError::new_err(
+                    "brain RMA is not available for the cno model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, brain_rma))
@@ -219,6 +242,11 @@ impl PySolution {
                 .iter()
                 .map(|state| state.tta)
                 .collect::<Vec<f64>>(),
+            InnerSolution::CNO(_) => {
+                return Err(PyValueError::new_err(
+                    "tTA is not available for the cno model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, tta))
@@ -243,6 +271,11 @@ impl PySolution {
                 .iter()
                 .map(|state| state.plasma_dox)
                 .collect::<Vec<f64>>(),
+            InnerSolution::CNO(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma dox is not available for the cno model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, plasma_dox))
@@ -267,9 +300,159 @@ impl PySolution {
                 .iter()
                 .map(|state| state.brain_dox)
                 .collect::<Vec<f64>>(),
+            InnerSolution::CNO(_) => {
+                return Err(PyValueError::new_err(
+                    "brain dox is not available for the cno model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, brain_dox))
+    }
+
+    /// Get peritoneal CNO array (returned as nmol).
+    #[getter]
+    fn peritoneal_cno<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let peritoneal_cno = match &self.inner {
+            InnerSolution::Constitutive(_) => {
+                return Err(PyValueError::new_err(
+                    "peritoneal CNO is not available for the constitutive model",
+                ));
+            }
+            InnerSolution::Dox(_) => {
+                return Err(PyValueError::new_err(
+                    "peritoneal CNO is not available for the dox model",
+                ));
+            }
+            InnerSolution::TetOff(_) => {
+                return Err(PyValueError::new_err(
+                    "peritoneal CNO is not available for the tetoff model",
+                ));
+            }
+            InnerSolution::CNO(s) => s
+                .states()
+                .iter()
+                .map(|state| state.peritoneal_cno)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, peritoneal_cno))
+    }
+
+    /// Get plasma CNO array.
+    #[getter]
+    fn plasma_cno<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let plasma_cno = match &self.inner {
+            InnerSolution::Constitutive(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma CNO is not available for the constitutive model",
+                ));
+            }
+            InnerSolution::Dox(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma CNO is not available for the dox model",
+                ));
+            }
+            InnerSolution::TetOff(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma CNO is not available for the tetoff model",
+                ));
+            }
+            InnerSolution::CNO(s) => s
+                .states()
+                .iter()
+                .map(|state| state.plasma_cno)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, plasma_cno))
+    }
+
+    /// Get brain CNO array.
+    #[getter]
+    fn brain_cno<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let brain_cno = match &self.inner {
+            InnerSolution::Constitutive(_) => {
+                return Err(PyValueError::new_err(
+                    "brain CNO is not available for the constitutive model",
+                ));
+            }
+            InnerSolution::Dox(_) => {
+                return Err(PyValueError::new_err(
+                    "brain CNO is not available for the dox model",
+                ));
+            }
+            InnerSolution::TetOff(_) => {
+                return Err(PyValueError::new_err(
+                    "brain CNO is not available for the tetoff model",
+                ));
+            }
+            InnerSolution::CNO(s) => s
+                .states()
+                .iter()
+                .map(|state| state.brain_cno)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, brain_cno))
+    }
+
+    /// Get plasma CLZ array.
+    #[getter]
+    fn plasma_clz<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let plasma_clz = match &self.inner {
+            InnerSolution::Constitutive(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma CLZ is not available for the constitutive model",
+                ));
+            }
+            InnerSolution::Dox(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma CLZ is not available for the dox model",
+                ));
+            }
+            InnerSolution::TetOff(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma CLZ is not available for the tetoff model",
+                ));
+            }
+            InnerSolution::CNO(s) => s
+                .states()
+                .iter()
+                .map(|state| state.plasma_clz)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, plasma_clz))
+    }
+
+    /// Get brain CLZ array.
+    #[getter]
+    fn brain_clz<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let brain_clz = match &self.inner {
+            InnerSolution::Constitutive(_) => {
+                return Err(PyValueError::new_err(
+                    "brain CLZ is not available for the constitutive model",
+                ));
+            }
+            InnerSolution::Dox(_) => {
+                return Err(PyValueError::new_err(
+                    "brain CLZ is not available for the dox model",
+                ));
+            }
+            InnerSolution::TetOff(_) => {
+                return Err(PyValueError::new_err(
+                    "brain CLZ is not available for the tetoff model",
+                ));
+            }
+            InnerSolution::CNO(s) => s
+                .states()
+                .iter()
+                .map(|state| state.brain_clz)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, brain_clz))
     }
 
     /// Returns the elapsed time in seconds

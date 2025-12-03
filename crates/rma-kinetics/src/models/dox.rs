@@ -53,9 +53,9 @@ impl AccessPeriod {
 
 /// Create a dox schedule given a dose, start time, duration of the access period, interval between access periods, and number of repeated administrations.
 #[cfg_attr(feature = "py", pyfunction)]
-#[cfg_attr(feature = "py", pyo3(signature = (doses, start_time, duration, repeat=None, interval=None)))]
+#[cfg_attr(feature = "py", pyo3(signature = (dose, start_time, duration, repeat=None, interval=None)))]
 pub fn create_dox_schedule(
-    doses: f64,
+    dose: f64,
     start_time: f64,
     duration: f64,
     repeat: Option<usize>,
@@ -67,7 +67,7 @@ pub fn create_dox_schedule(
 
     for _ in 0..repeat.unwrap_or(0) + 1 {
         schedule.push(AccessPeriod::new(
-            doses,
+            dose,
             current_time..=current_time + duration,
         ));
         current_time += duration + interval;

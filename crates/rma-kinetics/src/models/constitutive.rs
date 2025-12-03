@@ -1,12 +1,50 @@
+//! Constitutive RMA expression model.
+//!
+//! The constitutive model is a simple model that describes the expression of a synthetic serum reporter
+//! in the brain tissue and blood-brain barrier transport to the plasma.
+//!
+//! ## Parameters
+//!
+//! Reporter transcription, translation, and secretion is consolidated into a single term.
+//! Transport is assumed to be mainly via Fc receptor mediated reverse-transcytosis and
+//! degradation is assumed to be mainly by protein degradation. Degradation by cell division
+//! is assumed to be negligible for neuronal cell types.
+//!
+//! The default parameters are based on the constitutive expression of human-synapsin promoter in CA1 hippocampus.
+//! - Production rate: 0.2 nM/hr
+//! - Blood-brain barrier transport rate: 0.6 1/hr
+//! - Degradation rate: 0.007 1/hr
+//!
+//! ## Usage
+//! To solve the model over a given period of time, we use the solvers provided by
+//! the `differential_equations` dependency. From here, we can use the provided `Solve`
+//! trait and use the `solve` method on our model.
+//!
+//! ```rust
+//! use rma_kinetics::{models::constitutive, Solve};
+//! use differential_equations::methods::ExplicitRungeKutta;
+//!
+//! fn main() {
+//!     let model = constitutive::Model::default();
+//!     let init_state = constitutive::State::zeros();
+//!     let mut solver = ExplicitRungeKutta::dopri5();
+//!
+//!     let solution = model.solve(0., 100., 1., init_state, &mut solver);
+//!     assert!(solution.is_ok());
+//!
+//!     let solution = solution.unwrap();
+//!     println!("{:?}", solution.y);
+//! }
+//! ```
+//!
 use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Matrix};
+use rma_kinetics_derive::Solve;
 
 #[cfg(feature = "py")]
 use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
 
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;
-
-use rma_kinetics_derive::Solve;
 
 /// Constitutive model state.
 #[derive(StateTrait)]
@@ -99,6 +137,10 @@ const DEFAULT_BBB_TRANSPORT: f64 = 0.6;
 const DEFAULT_DEG: f64 = 0.007;
 
 /// Constitutive RMA expression model.
+///
+/// ## Creating a new Model
+///
+/// The `default`, `new` or `builder` methods can be used to create a new model instance.
 #[cfg_attr(feature = "py", pyclass)]
 #[cfg_attr(feature = "py", derive(PySolve))]
 #[cfg_attr(feature = "py", py_solve(variant = "Constitutive"))]

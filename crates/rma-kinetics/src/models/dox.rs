@@ -346,7 +346,7 @@ impl ModelBuilder {
 
     /// Set the bioavailability of the vehicle (food or water) intake (0-1)
     pub fn bioavailability(&mut self, bioavailability: f64) -> Result<&mut Self, Error> {
-        if !(0. ..-1.).contains(&bioavailability) {
+        if !(0. ..=1.).contains(&bioavailability) {
             return Err(Error::InvalidBioavailability(bioavailability));
         }
 

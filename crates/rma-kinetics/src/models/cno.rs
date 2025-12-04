@@ -1,4 +1,5 @@
 use crate::{Solve, pk::DoseApplyingSolout};
+use derive_builder::Builder;
 use differential_equations::{
     derive::State as StateTrait,
     error::Error,
@@ -303,28 +304,46 @@ const DEFAULT_CLZ_BRAIN_VD: f64 = 8.87e-2;
 
 /// CNO PK model
 #[cfg_attr(feature = "py", pyclass)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Builder)]
+#[builder(derive(Debug))]
 pub struct Model {
+    #[builder(default = "vec![Dose::new(DEFAULT_DOSE, DEFAULT_DOSE_TIME)]")]
     pub doses: Vec<Dose>,
+    #[builder(default = "DEFAULT_CNO_ABSORPTION")]
     pub cno_absorption: f64,
+    #[builder(default = "DEFAULT_CNO_ELIMINATION")]
     pub cno_elimination: f64,
+    #[builder(default = "DEFAULT_CNO_REVERSE_METABOLISM")]
     pub cno_reverse_metabolism: f64,
+    #[builder(default = "DEFAULT_CLZ_METABOLISM")]
     pub clz_metabolism: f64,
+    #[builder(default = "DEFAULT_CLZ_ELIMINATION")]
     pub clz_elimination: f64,
+    #[builder(default = "DEFAULT_CNO_BRAIN_TRANSPORT")]
     pub cno_brain_transport: f64,
+    #[builder(default = "DEFAULT_CNO_PLASMA_TRANSPORT")]
     pub cno_plasma_transport: f64,
+    #[builder(default = "DEFAULT_CLZ_BRAIN_TRANSPORT")]
     pub clz_brain_transport: f64,
+    #[builder(default = "DEFAULT_CLZ_PLASMA_TRANSPORT")]
     pub clz_plasma_transport: f64,
+    #[builder(default = "DEFAULT_CNO_PLASMA_VD")]
     pub cno_plasma_vd: f64,
+    #[builder(default = "DEFAULT_CNO_BRAIN_VD")]
     pub cno_brain_vd: f64,
+    #[builder(default = "DEFAULT_CLZ_PLASMA_VD")]
     pub clz_plasma_vd: f64,
+    #[builder(default = "DEFAULT_CLZ_BRAIN_VD")]
     pub clz_brain_vd: f64,
 }
 
 impl Model {
     /// Create a new CNO model builder.
-    pub fn builder(doses: Vec<Dose>) -> ModelBuilder {
-        ModelBuilder::new(doses)
+    // pub fn builder(doses: Vec<Dose>) -> ModelBuilder {
+    //     ModelBuilder::new(doses)
+    // }
+    pub fn builder() -> ModelBuilder {
+        ModelBuilder::default()
     }
 
     pub fn diff_with<S: CNOFields>(&self, _t: f64, y: &S, dydt: &mut S) {
@@ -359,7 +378,7 @@ impl Model {
 impl Default for Model {
     /// Default CNO model with default parameters.
     fn default() -> Self {
-        ModelBuilder::default().build()
+        ModelBuilder::default().build().unwrap()
     }
 }
 
@@ -650,163 +669,6 @@ impl Model {
     }
 }
 
-/// CNO PK model builder
-pub struct ModelBuilder {
-    pub doses: Vec<Dose>,
-    cno_absorption: f64,
-    cno_elimination: f64,
-    cno_reverse_metabolism: f64,
-    clz_metabolism: f64,
-    clz_elimination: f64,
-    cno_brain_transport: f64,
-    cno_plasma_transport: f64,
-    clz_brain_transport: f64,
-    clz_plasma_transport: f64,
-    cno_plasma_vd: f64,
-    cno_brain_vd: f64,
-    clz_plasma_vd: f64,
-    clz_brain_vd: f64,
-}
-
-impl Default for ModelBuilder {
-    fn default() -> Self {
-        Self {
-            doses: vec![Dose::new(DEFAULT_DOSE, DEFAULT_DOSE_TIME)],
-            cno_absorption: DEFAULT_CNO_ABSORPTION,
-            cno_elimination: DEFAULT_CNO_ELIMINATION,
-            cno_reverse_metabolism: DEFAULT_CNO_REVERSE_METABOLISM,
-            clz_metabolism: DEFAULT_CLZ_METABOLISM,
-            clz_elimination: DEFAULT_CLZ_ELIMINATION,
-            cno_brain_transport: DEFAULT_CNO_BRAIN_TRANSPORT,
-            cno_plasma_transport: DEFAULT_CNO_PLASMA_TRANSPORT,
-            clz_brain_transport: DEFAULT_CLZ_BRAIN_TRANSPORT,
-            clz_plasma_transport: DEFAULT_CLZ_PLASMA_TRANSPORT,
-            cno_plasma_vd: DEFAULT_CNO_PLASMA_VD,
-            cno_brain_vd: DEFAULT_CNO_BRAIN_VD,
-            clz_plasma_vd: DEFAULT_CLZ_PLASMA_VD,
-            clz_brain_vd: DEFAULT_CLZ_BRAIN_VD,
-        }
-    }
-}
-
-impl ModelBuilder {
-    pub fn new(doses: Vec<Dose>) -> Self {
-        Self {
-            doses,
-            cno_absorption: DEFAULT_CNO_ABSORPTION,
-            cno_elimination: DEFAULT_CNO_ELIMINATION,
-            cno_reverse_metabolism: DEFAULT_CNO_REVERSE_METABOLISM,
-            clz_metabolism: DEFAULT_CLZ_METABOLISM,
-            clz_elimination: DEFAULT_CLZ_ELIMINATION,
-            cno_brain_transport: DEFAULT_CNO_BRAIN_TRANSPORT,
-            cno_plasma_transport: DEFAULT_CNO_PLASMA_TRANSPORT,
-            clz_brain_transport: DEFAULT_CLZ_BRAIN_TRANSPORT,
-            clz_plasma_transport: DEFAULT_CLZ_PLASMA_TRANSPORT,
-            cno_plasma_vd: DEFAULT_CNO_PLASMA_VD,
-            cno_brain_vd: DEFAULT_CNO_BRAIN_VD,
-            clz_plasma_vd: DEFAULT_CLZ_PLASMA_VD,
-            clz_brain_vd: DEFAULT_CLZ_BRAIN_VD,
-        }
-    }
-    /// Set the CNO absorption rate.
-    pub fn cno_absorption(&mut self, absorption: f64) -> &mut Self {
-        self.cno_absorption = absorption;
-        self
-    }
-
-    /// Set the CNO elimination rate.
-    pub fn cno_elimination(&mut self, elimination: f64) -> &mut Self {
-        self.cno_elimination = elimination;
-        self
-    }
-
-    /// Set the CNO reverse metabolism rate.
-    pub fn cno_reverse_metabolism(&mut self, metabolism: f64) -> &mut Self {
-        self.cno_reverse_metabolism = metabolism;
-        self
-    }
-
-    /// Set the CLZ metabolism rate.
-    pub fn clz_metabolism(&mut self, metabolism: f64) -> &mut Self {
-        self.clz_metabolism = metabolism;
-        self
-    }
-
-    /// Set the CLZ elimination rate.
-    pub fn clz_elimination(&mut self, elimination: f64) -> &mut Self {
-        self.clz_elimination = elimination;
-        self
-    }
-
-    /// Set the CNO brain transport rate.
-    pub fn cno_brain_transport(&mut self, transport: f64) -> &mut Self {
-        self.cno_brain_transport = transport;
-        self
-    }
-
-    /// Set the CNO plasma transport rate.
-    pub fn cno_plasma_transport(&mut self, transport: f64) -> &mut Self {
-        self.cno_plasma_transport = transport;
-        self
-    }
-
-    /// Set the CLZ brain transport rate.
-    pub fn clz_brain_transport(&mut self, transport: f64) -> &mut Self {
-        self.clz_brain_transport = transport;
-        self
-    }
-
-    /// Set the CLZ plasma transport rate.
-    pub fn clz_plasma_transport(&mut self, transport: f64) -> &mut Self {
-        self.clz_plasma_transport = transport;
-        self
-    }
-
-    /// Set the CNO plasma volume of distribution.
-    pub fn cno_plasma_vd(&mut self, vd: f64) -> &mut Self {
-        self.cno_plasma_vd = vd;
-        self
-    }
-
-    /// Set the CNO brain volume of distribution.
-    pub fn cno_brain_vd(&mut self, vd: f64) -> &mut Self {
-        self.cno_brain_vd = vd;
-        self
-    }
-
-    /// Set the CLZ plasma volume of distribution.
-    pub fn clz_plasma_vd(&mut self, vd: f64) -> &mut Self {
-        self.clz_plasma_vd = vd;
-        self
-    }
-
-    /// Set the CLZ brain volume of distribution.
-    pub fn clz_brain_vd(&mut self, vd: f64) -> &mut Self {
-        self.clz_brain_vd = vd;
-        self
-    }
-
-    /// Build the CNO model.
-    pub fn build(&self) -> Model {
-        Model {
-            doses: self.doses.clone(),
-            cno_absorption: self.cno_absorption,
-            cno_elimination: self.cno_elimination,
-            cno_reverse_metabolism: self.cno_reverse_metabolism,
-            clz_metabolism: self.clz_metabolism,
-            clz_elimination: self.clz_elimination,
-            cno_brain_transport: self.cno_brain_transport,
-            cno_plasma_transport: self.cno_plasma_transport,
-            clz_brain_transport: self.clz_brain_transport,
-            clz_plasma_transport: self.clz_plasma_transport,
-            cno_plasma_vd: self.cno_plasma_vd,
-            cno_brain_vd: self.cno_brain_vd,
-            clz_plasma_vd: self.clz_plasma_vd,
-            clz_brain_vd: self.clz_brain_vd,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -864,25 +726,27 @@ mod tests {
     }
 
     #[test]
-    fn cno_model_creation() {
+    fn cno_model_creation() -> Result<(), ModelBuilderError> {
         let default_model = Model::default();
         assert_eq!(default_model.doses.len(), 1);
         assert_eq!(default_model.cno_absorption, DEFAULT_CNO_ABSORPTION);
         assert_eq!(default_model.cno_elimination, DEFAULT_CNO_ELIMINATION);
 
         let dose = Dose::new(0.03, 0.);
-        let model_with_dose = Model::builder(vec![dose]).build();
+        let model_with_dose = Model::builder().doses(vec![dose]).build()?;
         assert_eq!(model_with_dose.doses.len(), 1);
         assert_eq!(model_with_dose.doses[0].mg, 0.03);
         assert_eq!(model_with_dose.doses[0].time, 0.);
 
         let schedule = create_cno_schedule(0.03, 0., Some(1), Some(24.));
-        let model_with_schedule = Model::builder(schedule).build();
+        let model_with_schedule = Model::builder().doses(schedule).build()?;
         assert_eq!(model_with_schedule.doses.len(), 2);
+
+        Ok(())
     }
 
     #[test]
-    fn cno_model_simulation() {
+    fn cno_model_simulation() -> Result<(), Box<dyn std::error::Error>> {
         let mut solver = ExplicitRungeKutta::dopri5();
         let t0 = 0.;
         let tf = 24.;
@@ -900,28 +764,31 @@ mod tests {
 
         // apply dose at t=1
         let dose = Dose::new(0.03, 1.);
-        let custom_model = Model::builder(vec![dose.clone()]).build();
+        let custom_model = Model::builder().doses(vec![dose.clone()]).build()?;
         let solution = custom_model.solve(t0, tf, dt, init_state, &mut solver);
 
         assert!(solution.is_ok());
         let solution = solution.unwrap();
         assert!(matches!(solution.status, Status::Complete));
         assert_eq!(solution.y[1].peritoneal_cno, dose.clone().nmol);
+
+        Ok(())
     }
 
     #[test]
-    fn small_dt() {
-        let model = Model::builder(vec![Dose::new(0.03, 1.)]).build();
+    fn small_dt() -> Result<(), Box<dyn std::error::Error>> {
+        let model = Model::builder().doses(vec![Dose::new(0.03, 1.)]).build()?;
         let mut solver = ExplicitRungeKutta::dopri5();
         let init_state = State::zeros();
 
         let solution = model.solve(0., 10., 0.1, init_state, &mut solver);
         assert!(solution.is_ok());
+        Ok(())
     }
 
     #[test]
-    fn expected_ts() {
-        let model = Model::builder(vec![Dose::new(0.03, 1.)]).build();
+    fn expected_ts() -> Result<(), Box<dyn std::error::Error>> {
+        let model = Model::builder().doses(vec![Dose::new(0.03, 1.)]).build()?;
         let dt = 1.;
         let t0 = 0.;
         let tf = 10.;
@@ -936,7 +803,7 @@ mod tests {
         assert_eq!(solution.y.len(), expected_len);
         println!("{:?}", solution.t);
 
-        let model = Model::builder(vec![Dose::new(0.03, 1.5)]).build();
+        let model = Model::builder().doses(vec![Dose::new(0.03, 1.5)]).build()?;
         let solution = model.solve(t0, tf, dt, init_state, &mut solver);
         assert!(solution.is_ok());
         let solution = solution.unwrap();
@@ -948,5 +815,7 @@ mod tests {
         assert_eq!(solution.t[2], 1.5);
         assert_eq!(solution.t[3], 2.0);
         assert_eq!(solution.t[4], 3.0);
+
+        Ok(())
     }
 }

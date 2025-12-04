@@ -15,7 +15,8 @@ use differential_equations::{
 };
 
 /// Chemogenetic model state.
-#[derive(StateTrait)]
+#[derive(StateTrait, Builder)]
+#[builder(derive(Debug))]
 pub struct State<T> {
     pub brain_rma: T,
     pub plasma_rma: T,

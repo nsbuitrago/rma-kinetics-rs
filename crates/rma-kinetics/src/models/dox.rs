@@ -301,7 +301,7 @@ impl Model {
 
 impl Default for Model {
     fn default() -> Self {
-        ModelBuilder::default().build()
+        ModelBuilder::default().build().unwrap()
     }
 }
 
@@ -390,7 +390,7 @@ impl ModelBuilder {
         self
     }
 
-    pub fn build(&self) -> Model {
+    pub fn build(&self) -> Result<Model, Error> {
         let dose_concentration = self
             .schedule
             .iter()
@@ -400,7 +400,7 @@ impl ModelBuilder {
             })
             .collect();
 
-        Model {
+        Ok(Model {
             vehicle_intake: self.vehicle_intake,
             bioavailability: self.bioavailability,
             absorption: self.absorption,
@@ -410,7 +410,7 @@ impl ModelBuilder {
             plasma_vd: self.plasma_vd,
             schedule: self.schedule.clone(),
             dose_concentration,
-        }
+        })
     }
 }
 
@@ -467,19 +467,21 @@ mod tests {
     }
 
     #[test]
-    fn dox_model_creation() {
+    fn dox_model_creation() -> Result<(), Error> {
         let default_model = Model::default();
         assert_eq!(default_model.schedule.len(), 0); // no schedule set for the default model
 
         let model_with_schedule = Model::builder()
             .schedule(vec![AccessPeriod::new(40., 0.0..=24.)])
-            .build();
+            .build()?;
         assert_eq!(model_with_schedule.schedule.len(), 1);
         assert_eq!(model_with_schedule.absorption, DEFAULT_ABSORPTION);
+
+        Ok(())
     }
 
     #[test]
-    fn dox_model_simulation() {
+    fn dox_model_simulation() -> Result<(), Error> {
         let zero_model = Model::default();
         let mut solver = ExplicitRungeKutta::dopri5();
         let init_state = State::zeros();
@@ -492,11 +494,13 @@ mod tests {
         // add dox administration period
         let custom_model = Model::builder()
             .schedule(vec![AccessPeriod::new(40., 0.0..=24.)])
-            .build();
+            .build()?;
         let solution = custom_model.solve(0., 24., 1., init_state, &mut solver);
         assert!(solution.is_ok());
         let unwrapped_solution = solution.unwrap();
         assert!(unwrapped_solution.y.last().unwrap().plasma_dox > 0.);
         assert!(unwrapped_solution.y.last().unwrap().brain_dox > 0.);
+
+        Ok(())
     }
 }

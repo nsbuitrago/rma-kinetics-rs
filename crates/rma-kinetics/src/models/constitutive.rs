@@ -35,6 +35,7 @@
 //! println!("{:?}", solution.y);
 //! ```
 //!
+use derive_builder::Builder;
 use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Matrix};
 use rma_kinetics_derive::Solve;
 
@@ -142,11 +143,15 @@ const DEFAULT_DEG: f64 = 0.007;
 #[cfg_attr(feature = "py", pyclass)]
 #[cfg_attr(feature = "py", derive(PySolve))]
 #[cfg_attr(feature = "py", py_solve(variant = "Constitutive"))]
-#[derive(Solve)]
+#[derive(Solve, Builder)]
+#[builder(derive(Debug))]
 pub struct Model {
-    prod: f64,
-    bbb_transport: f64,
-    deg: f64,
+    #[builder(default = "DEFAULT_PROD")]
+    pub prod: f64,
+    #[builder(default = "DEFAULT_BBB_TRANSPORT")]
+    pub bbb_transport: f64,
+    #[builder(default = "DEFAULT_DEG")]
+    pub deg: f64,
 }
 
 #[cfg(feature = "py")]
@@ -203,7 +208,7 @@ impl Default for Model {
     /// Create a new constitutive model instance with the default parameters
     /// for CA1 hippocampus expression driven by a human-synapsin promoter.
     fn default() -> Self {
-        ModelBuilder::default().build()
+        ModelBuilder::default().build().unwrap()
     }
 }
 
@@ -221,57 +226,6 @@ impl ODE<f64, State<f64>> for Model {
         j[(0, 1)] = 0.;
         j[(1, 0)] = self.bbb_transport;
         j[(1, 1)] = -self.deg;
-    }
-}
-
-/// Constitutive expression model builder.
-pub struct ModelBuilder {
-    pub prod: f64,
-    pub bbb_transport: f64,
-    pub deg: f64,
-}
-
-impl Default for ModelBuilder {
-    fn default() -> Self {
-        Self {
-            prod: DEFAULT_PROD,
-            bbb_transport: DEFAULT_BBB_TRANSPORT,
-            deg: DEFAULT_DEG,
-        }
-    }
-}
-
-impl ModelBuilder {
-    /// Create a new constitutive model builder instance.
-    pub fn new() -> Self {
-        ModelBuilder::default()
-    }
-
-    /// Set RMA production rate (concentration/time)
-    pub fn prod(&mut self, rate: f64) -> &mut Self {
-        self.prod = rate;
-        self
-    }
-
-    /// Set the blood-brain barrier transport rate (1/time)
-    pub fn bbb_transport(&mut self, rate: f64) -> &mut Self {
-        self.bbb_transport = rate;
-        self
-    }
-
-    /// Set the RMA degradation rate (1/time)
-    pub fn deg(&mut self, rate: f64) -> &mut Self {
-        self.deg = rate;
-        self
-    }
-
-    /// Build the constitutive expression model
-    pub fn build(&self) -> Model {
-        Model {
-            prod: self.prod,
-            bbb_transport: self.bbb_transport,
-            deg: self.deg,
-        }
     }
 }
 
@@ -305,11 +259,12 @@ mod tests {
     }
 
     #[test]
-    fn builder_pattern() {
-        let model = Model::builder().prod(0.5).bbb_transport(0.7).build();
+    fn builder_pattern() -> Result<(), Box<dyn std::error::Error>> {
+        let model = Model::builder().prod(0.5).bbb_transport(0.7).build()?;
         let mut solver = ExplicitRungeKutta::dopri5();
         let solution = model.solve(T0, TF, DT, State::default(), &mut solver);
 
         assert!(solution.is_ok());
+        Ok(())
     }
 }

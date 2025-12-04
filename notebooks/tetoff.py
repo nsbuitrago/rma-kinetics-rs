@@ -47,12 +47,6 @@ def _(Dopri5, dox, plt, tetoff):
     plt.ylabel("[Plasma RMA] (nM)")
     plt.tight_layout()
     plt.gcf()
-
-    return
-
-
-@app.cell
-def _():
     return
 
 

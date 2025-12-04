@@ -44,7 +44,13 @@ docs = [
     "mkdocs-material>=9.7.0",
 ]
 dev = [
+    "diffopt>=1.5.0",
     "marimo>=0.18.1",
     "matplotlib>=3.10.7",
+    "mpi4py>=4.1.1",
+    "polars>=1.35.2",
     "pyrefly>=0.44.0",
+    "scikit-learn>=1.7.2",
+    "seaborn>=0.13.2",
+    "typer>=0.20.0",
 ]

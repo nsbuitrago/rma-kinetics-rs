@@ -24,17 +24,15 @@
 //! use rma_kinetics::{models::constitutive, Solve};
 //! use differential_equations::methods::ExplicitRungeKutta;
 //!
-//! fn main() {
-//!     let model = constitutive::Model::default();
-//!     let init_state = constitutive::State::zeros();
-//!     let mut solver = ExplicitRungeKutta::dopri5();
+//! let model = constitutive::Model::default();
+//! let init_state = constitutive::State::zeros();
+//! let mut solver = ExplicitRungeKutta::dopri5();
 //!
-//!     let solution = model.solve(0., 100., 1., init_state, &mut solver);
-//!     assert!(solution.is_ok());
+//! let solution = model.solve(0., 100., 1., init_state, &mut solver);
+//! assert!(solution.is_ok());
 //!
-//!     let solution = solution.unwrap();
-//!     println!("{:?}", solution.y);
-//! }
+//! let solution = solution.unwrap();
+//! println!("{:?}", solution.y);
 //! ```
 //!
 use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Matrix};
@@ -178,7 +176,7 @@ impl Model {
         let result = crate::solve::PySolve::solve(self, t0, tf, dt, init_state.inner, solver);
         match result {
             Ok(solution) => Ok(solution),
-            Err(e) => Err(PyValueError::new_err("Failed to solve")), // TODO: add context from e
+            Err(e) => Err(PyValueError::new_err(format!("Failed to solve: {:?}", e))),
         }
     }
 }

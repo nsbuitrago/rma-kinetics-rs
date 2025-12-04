@@ -23,14 +23,12 @@
 //! use rma_kinetics::{models::constitutive, Solve};
 //! use differential_equations::methods::ExplicitRungeKutta;
 //!
-//! fn main() {
-//!     let model = constitutive::Model::default();
-//!     let init_state = constitutive::State::zeros();
-//!     let mut solver = ExplicitRungeKutta::dopri5();
+//! let model = constitutive::Model::default();
+//! let init_state = constitutive::State::zeros();
+//! let mut solver = ExplicitRungeKutta::dopri5();
 //!
-//!     let solution = model.solve(0., 100., 1., init_state, &mut solver);
-//!     assert!(solution.is_ok());
-//! }
+//! let solution = model.solve(0., 100., 1., init_state, &mut solver);
+//! assert!(solution.is_ok());
 //! ```
 //!
 //! The returned solution is the [`Solution`](https://docs.rs/differential-equations/latest/differential_equations/solution/struct.Solution.html)

@@ -4,7 +4,7 @@ use differential_equations::{
     error::Error,
     ode::{ODE, ODEProblem, OrdinaryNumericalMethod},
     prelude::{ControlFlag, Interpolation, Solution},
-    solout::{EvenSolout, Solout},
+    solout::Solout,
 };
 
 #[cfg(feature = "py")]
@@ -459,7 +459,7 @@ impl DoseApplyingSolout {
 
         if dose.time > t_prev && dose.time <= t_curr {
             let mut y_dose = if is_close!(dose.time, t_curr) {
-                y_curr.clone()
+                *y_curr
             } else {
                 // this is safe to unwrap since we checked that dose.time is in
                 // the range [t_prev, t_curr], so we can never get a OutofBounds error.
@@ -499,7 +499,7 @@ impl Solout<f64, State<f64>> for DoseApplyingSolout {
         if let Some((dose_time, dosed_state)) = pending_dose {
             // If dose time matches the output time, use the dosed state for output
             if is_close!(dose_time, next_output_time) && next_output_time <= t_curr {
-                solution.push(next_output_time, dosed_state.clone());
+                solution.push(next_output_time, dosed_state);
                 self.last_output_time = Some(next_output_time);
                 return ControlFlag::ModifyState(dose_time, dosed_state);
             }
@@ -676,7 +676,7 @@ impl Model {
             Ok(solution) => Ok(PySolution {
                 inner: InnerSolution::CNO(solution),
             }),
-            Err(e) => Err(PyValueError::new_err("Failed to solve")), // TODO: add context from _e
+            Err(e) => Err(PyValueError::new_err(format!("Failed to solve: {:?}", e))),
         }
     }
 

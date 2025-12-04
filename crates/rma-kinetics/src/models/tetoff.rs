@@ -204,7 +204,7 @@ impl Model {
         let result = crate::solve::PySolve::solve(self, t0, tf, dt, init_state.inner, solver);
         match result {
             Ok(solution) => Ok(solution),
-            Err(e) => Err(PyValueError::new_err("Failed to solve")), // TODO: add context from e
+            Err(e) => Err(PyValueError::new_err(format!("Failed to solve: {:?}", e))),
         }
     }
 }

@@ -256,7 +256,7 @@ impl Model {
         let result = crate::solve::PySolve::solve(self, t0, tf, dt, init_state.inner, solver);
         match result {
             Ok(solution) => Ok(solution),
-            Err(e) => Err(PyValueError::new_err("Failed to solve")), // TODO: add context from e
+            Err(e) => Err(PyValueError::new_err(format!("Failed to solve: {:?}", e))),
         }
     }
 }
@@ -346,7 +346,7 @@ impl ModelBuilder {
 
     /// Set the bioavailability of the vehicle (food or water) intake (0-1)
     pub fn bioavailability(&mut self, bioavailability: f64) -> Result<&mut Self, Error> {
-        if bioavailability < 0. || bioavailability > 1. {
+        if !(0. ..-1.).contains(&bioavailability) {
             return Err(Error::InvalidBioavailability(bioavailability));
         }
 
@@ -409,7 +409,7 @@ impl ModelBuilder {
             plasma_transport: self.plasma_transport,
             plasma_vd: self.plasma_vd,
             schedule: self.schedule.clone(),
-            dose_concentration: dose_concentration,
+            dose_concentration,
         }
     }
 }

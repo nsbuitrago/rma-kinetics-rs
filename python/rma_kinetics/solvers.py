@@ -16,11 +16,12 @@ class Solver:
 
 @dataclass
 class Dopri5(Solver):
-    """
-    Dormand-Prince 5(4) Explicit Runge-Kutta method.
-    """
-    solver_type: str = field(
-          default="dopri5",
-          init=False,
-          repr=False,
-      )
+    """Dormand-Prince 5(4) Explicit Runge-Kutta method."""
+    solver_type: str = field(default="dopri5", init=False, repr=False)
+
+
+# Implicit Runge-Kutta solvers
+@dataclass
+class Kvaerno3(Solver):
+    """Kvaerno 3(2) method. L-stable, 3rd order. Uses 4 stages."""
+    solver_type: str = field(default="kvaerno3", init=False, repr=False)

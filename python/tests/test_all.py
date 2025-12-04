@@ -5,7 +5,8 @@ T0 = 0
 T1 = 168
 DT = 1
 
-solver = solvers.Dopri5()
+dopri5 = solvers.Dopri5()
+kvaerno3 = solvers.Kvaerno3()
 
 def test_constitutive_model_creation():
     models.constitutive.Model() # default model
@@ -26,9 +27,8 @@ def test_constitutive_state_creation():
 def test_constitutive_solve():
     model = models.constitutive.Model()
     state = models.constitutive.State()
-    solver = solvers.Dopri5()
 
-    solution = model.solve(T0, T1, DT, state, solver)
+    solution = model.solve(T0, T1, DT, state, dopri5)
     expected_shape = (T1+1,)
     assert solution.ts.shape == expected_shape
 
@@ -39,8 +39,11 @@ def test_constitutive_solve():
     assert plasma_rma[-1] > brain_rma[-1]
 
     # test other solvers
-    # solver = solvers.Kvaerno3()
-    # model.solve(T0, T1, DT, state, solver)
+    solution = model.solve(T0, T1, DT, state, kvaerno3)
+    assert solution.ts.shape == expected_shape
+    assert solution.plasma_rma.shape == expected_shape
+    assert solution.brain_rma.shape == expected_shape
+    assert solution.plasma_rma[-1] > solution.brain_rma[-1]
 
 def test_dox_model_creation():
     models.dox.Model() # default model
@@ -80,9 +83,8 @@ def test_dox_schedule_creation():
 def test_dox_model_solve():
     model = models.dox.Model()
     state = models.dox.State()
-    solver = solvers.Dopri5()
 
-    solution = model.solve(T0, T1, DT, state, solver)
+    solution = model.solve(T0, T1, DT, state, dopri5)
     expected_shape = (T1+1,)
     assert solution.ts.shape == expected_shape
     assert solution.plasma_dox.shape == expected_shape
@@ -93,13 +95,17 @@ def test_dox_model_solve():
     # adding dose
     period = models.dox.AccessPeriod(dose=40., start_time=0, stop_time=24)
     model = models.dox.Model(schedule=[period])
-    solution = model.solve(T0, T1, DT, state, solver)
+    solution = model.solve(T0, T1, DT, state, dopri5)
     assert solution.plasma_dox[10] > 0
     assert solution.brain_dox[10] > 0
 
     # test other solvers
-    # solver = solvers.Kvaerno3()
-    # model.solve(T0, T1, DT, state, solver)
+    solution = model.solve(T0, T1, DT, state, kvaerno3)
+    assert solution.ts.shape == expected_shape
+    assert solution.plasma_dox.shape == expected_shape
+    assert solution.brain_dox.shape == expected_shape
+    assert solution.plasma_dox[10] > 0
+    assert solution.brain_dox[10] > 0
 
 def test_tetoff_state_creation():
     state = models.tetoff.State() # default state
@@ -124,9 +130,8 @@ def test_tetoff_model_creation():
 def test_tetoff_solve():
     model = models.tetoff.Model()
     state = models.tetoff.State()
-    solver = solvers.Dopri5()
 
-    solution = model.solve(T0, T1, DT, state, solver)
+    solution = model.solve(T0, T1, DT, state, dopri5)
     expected_shape = (T1+1,)
     assert solution.ts.shape == expected_shape
 
@@ -139,8 +144,12 @@ def test_tetoff_solve():
     assert solution.tta[-1] > 0
 
     # test other solvers
-    # solver = solvers.Kvaerno3()
-    # model.solve(T0, T1, DT, state, solver)
+    solution = model.solve(T0, T1, DT, state, kvaerno3)
+    assert solution.ts.shape == expected_shape
+    assert solution.plasma_rma.shape == expected_shape
+    assert solution.brain_rma.shape == expected_shape
+    assert solution.plasma_rma[-1] > solution.brain_rma[-1]
+    assert solution.tta[-1] > 0
 
 def test_cno_dose_creation():
     dose = models.cno.Dose(0.03, 0)
@@ -200,11 +209,14 @@ def test_cno_model_simulation():
     # default model - dose (0.03 mg) applied at t=0
     cno_model = models.cno.Model()
     cno_state = models.cno.State()
-    solver = solvers.Dopri5()
 
-    solution = cno_model.solve(T0, T1, DT, cno_state, solver)
+    solution = cno_model.solve(T0, T1, DT, cno_state, dopri5)
     assert solution.peritoneal_cno.shape == (T1+1,)
 
     # test other solvers
-    # solver = solvers.Kvaerno3()
-    # cno_model.solve(T0, T1, DT, cno_state, solver)
+    solution = cno_model.solve(T0, T1, DT, cno_state, kvaerno3)
+    assert solution.peritoneal_cno.shape == (T1+1,)
+    assert solution.plasma_cno.shape == (T1+1,)
+    assert solution.brain_cno.shape == (T1+1,)
+    assert solution.plasma_clz.shape == (T1+1,)
+    assert solution.brain_clz.shape == (T1+1,)

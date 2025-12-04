@@ -299,20 +299,20 @@ const DEFAULT_CLZ_BRAIN_VD: f64 = 8.87e-2;
 #[cfg_attr(feature = "py", pyclass)]
 #[derive(Debug, Clone)]
 pub struct Model {
-    doses: Vec<Dose>,
-    cno_absorption: f64,
-    cno_elimination: f64,
-    cno_reverse_metabolism: f64,
-    clz_metabolism: f64,
-    clz_elimination: f64,
-    cno_brain_transport: f64,
-    cno_plasma_transport: f64,
-    clz_brain_transport: f64,
-    clz_plasma_transport: f64,
-    cno_plasma_vd: f64,
-    cno_brain_vd: f64,
-    clz_plasma_vd: f64,
-    clz_brain_vd: f64,
+    pub doses: Vec<Dose>,
+    pub cno_absorption: f64,
+    pub cno_elimination: f64,
+    pub cno_reverse_metabolism: f64,
+    pub clz_metabolism: f64,
+    pub clz_elimination: f64,
+    pub cno_brain_transport: f64,
+    pub cno_plasma_transport: f64,
+    pub clz_brain_transport: f64,
+    pub clz_plasma_transport: f64,
+    pub cno_plasma_vd: f64,
+    pub cno_brain_vd: f64,
+    pub clz_plasma_vd: f64,
+    pub clz_brain_vd: f64,
 }
 
 impl Model {
@@ -657,22 +657,46 @@ impl Model {
         init_state: PyState,
         solver: PySolver,
     ) -> PyResult<PySolution> {
-        let mut internal_solver = match solver.solver_type.as_str() {
-            "dopri5" => differential_equations::methods::ExplicitRungeKutta::dopri5()
-                .rtol(solver.rtol)
-                .atol(solver.atol)
-                .h0(solver.dt0)
-                .h_min(solver.min_dt)
-                .h_max(solver.max_dt)
-                .max_steps(solver.max_steps)
-                .max_rejects(solver.max_rejected_steps)
-                .safety_factor(solver.safety_factor)
-                .min_scale(solver.min_scale)
-                .max_scale(solver.max_scale),
-            _ => panic!("Solver not supported"),
+        let result = match solver.solver_type.as_str() {
+            "dopri5" => {
+                let mut solver_instance =
+                    differential_equations::methods::ExplicitRungeKutta::dopri5()
+                        .rtol(solver.rtol)
+                        .atol(solver.atol)
+                        .h0(solver.dt0)
+                        .h_min(solver.min_dt)
+                        .h_max(solver.max_dt)
+                        .max_steps(solver.max_steps)
+                        .max_rejects(solver.max_rejected_steps)
+                        .safety_factor(solver.safety_factor)
+                        .min_scale(solver.min_scale)
+                        .max_scale(solver.max_scale);
+                self.solve(t0, tf, dt, init_state.inner, &mut solver_instance)
+            }
+            "kvaerno3" => {
+                let mut solver_instance =
+                    differential_equations::methods::DiagonallyImplicitRungeKutta::kvaerno423()
+                        .rtol(solver.rtol)
+                        .atol(solver.atol)
+                        .h0(solver.dt0)
+                        .h_min(solver.min_dt)
+                        .h_max(solver.max_dt)
+                        .max_steps(solver.max_steps)
+                        .max_rejects(solver.max_rejected_steps)
+                        .safety_factor(solver.safety_factor)
+                        .min_scale(solver.min_scale)
+                        .max_scale(solver.max_scale);
+                self.solve(t0, tf, dt, init_state.inner, &mut solver_instance)
+            }
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "Solver '{}' not supported",
+                    solver.solver_type
+                )));
+            }
         };
 
-        match self.solve(t0, tf, dt, init_state.inner, &mut internal_solver) {
+        match result {
             Ok(solution) => Ok(PySolution {
                 inner: InnerSolution::CNO(solution),
             }),

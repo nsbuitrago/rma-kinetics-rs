@@ -30,6 +30,12 @@ features = ["py"]
 profile = "release"
 editable-profile = "dev"
 
+[tool.pyrefly]
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
+]
+
 [dependency-groups]
 tests = [
     "pytest>=9.0.1",
@@ -40,4 +46,5 @@ docs = [
 dev = [
     "marimo>=0.18.1",
     "matplotlib>=3.10.7",
+    "pyrefly>=0.44.0",
 ]

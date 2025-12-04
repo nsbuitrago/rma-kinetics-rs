@@ -87,23 +87,38 @@ pub fn py_solve_derive(input: TokenStream) -> TokenStream {
                 solver: crate::solve::PySolver,
             ) -> Result<crate::solve::PySolution, differential_equations::error::Error<f64, Self::State>>
             {
-                let mut internal_solver = match solver.solver_type.as_str() {
-                    "dopri5" => differential_equations::methods::ExplicitRungeKutta::dopri5()
-                        .rtol(solver.rtol)
-                        .atol(solver.atol)
-                        .h0(solver.dt0)
-                        .h_min(solver.min_dt)
-                        .h_max(solver.max_dt)
-                        .max_steps(solver.max_steps)
-                        .max_rejects(solver.max_rejected_steps)
-                        .safety_factor(solver.safety_factor)
-                        .min_scale(solver.min_scale)
-                        .max_scale(solver.max_scale),
+                let problem = differential_equations::ode::ODEProblem::new(self, t0, tf, init_state);
+                let solution = match solver.solver_type.as_str() {
+                    "dopri5" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::dopri5()
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    },
+                    "kvaerno3" => {
+                        let mut solver_instance = differential_equations::methods::DiagonallyImplicitRungeKutta::kvaerno423()
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    },
                     _ => panic!("Solver not supported"),
                 };
-
-                let problem = differential_equations::ode::ODEProblem::new(self, t0, tf, init_state);
-                let solution = problem.even(dt).solve(&mut internal_solver)?;
 
                 Ok(crate::solve::PySolution {
                     inner: crate::solve::InnerSolution::#variant_ident(solution),

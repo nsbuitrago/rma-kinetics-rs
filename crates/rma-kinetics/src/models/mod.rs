@@ -11,6 +11,7 @@
 //! - Dox - doxycycline pharmacokinetic model
 //! - CNO - clozapine-N-oxide/clozapine pharmacokinetic model
 
+pub mod chemogenetic;
 pub mod cno;
 pub mod constitutive;
 pub mod dox;

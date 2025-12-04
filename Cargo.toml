@@ -12,5 +12,6 @@ differential-equations = "0.5.1"
 pyo3 = "0.27.0"
 numpy = "0.27.0"
 thiserror = "2.0.17"
+derive_builder = "0.20.2"
 rma-kinetics = { version = "0.1.0", path = "crates/rma-kinetics" }
 rma-kinetics-derive = { version = "0.1.0", path = "crates/rma-kinetics-derive" }

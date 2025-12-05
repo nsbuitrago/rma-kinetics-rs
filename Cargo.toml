@@ -5,6 +5,9 @@ members = ["crates/*"]
 [workspace.package]
 version = "0.1.0"
 authors = ["Nicolas Buitrago <mail@nsbuitrago.xyz>"]
+license = "MIT"
+description = "RMA Kinetic Models"
+homepage = "https://github.com/nsbuitrago/rma-kinetics-rs"
 edition = "2024"
 
 [workspace.dependencies]

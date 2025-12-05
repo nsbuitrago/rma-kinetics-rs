@@ -220,3 +220,59 @@ def test_cno_model_simulation():
     assert solution.brain_cno.shape == (T1+1,)
     assert solution.plasma_clz.shape == (T1+1,)
     assert solution.brain_clz.shape == (T1+1,)
+
+def test_chemogenetic_state_creation():
+    state = models.chemogenetic.State()
+    assert state.brain_rma == 0
+    assert state.plasma_rma == 0
+    assert state.tta == 0
+    assert state.plasma_dox == 0
+    assert state.brain_dox == 0
+    assert state.dreadd == 0
+    assert state.peritoneal_cno == 0
+    assert state.plasma_cno == 0
+    assert state.brain_cno == 0
+    assert state.plasma_clz == 0
+    assert state.brain_clz == 0
+
+    custom_state = models.chemogenetic.State(
+        brain_rma=10,
+        plasma_rma=20,
+        tta=30,
+        plasma_dox=40,
+        brain_dox=50,
+        dreadd=60,
+        peritoneal_cno=70,
+        plasma_cno=80,
+        brain_cno=90,
+        plasma_clz=100,
+        brain_clz=110,
+    )
+
+    assert custom_state.brain_rma == 10
+    assert custom_state.plasma_rma == 20
+    assert custom_state.tta == 30
+    assert custom_state.plasma_dox == 40 and custom_state.brain_dox == 50
+    assert custom_state.dreadd == 60 and custom_state.peritoneal_cno == 70
+    assert custom_state.plasma_cno == 80 and custom_state.brain_cno == 90
+    assert custom_state.plasma_clz == 100 and custom_state.brain_clz == 110
+
+def test_chemogenetic_model_creation():
+    models.chemogenetic.Model() # default model
+    model = models.chemogenetic.Model(rma_prod=0.5) # custom model
+
+    assert model.rma_prod == 0.5
+
+def test_chemogenetic_model_simulation():
+    model = models.chemogenetic.Model()
+    state = models.chemogenetic.State()
+
+    solution = model.solve(T0, T1, DT, state, dopri5)
+    assert solution.ts.shape == (T1+1,)
+    assert solution.brain_rma.shape == (T1+1,)
+    assert solution.plasma_rma.shape == (T1+1,)
+    assert solution.tta.shape == (T1+1,)
+    assert solution.plasma_dox.shape == (T1+1,)
+    assert solution.brain_dox.shape == (T1+1,)
+    assert solution.dreadd.shape == (T1+1,)
+    assert solution.peritoneal_cno.shape == (T1+1,)

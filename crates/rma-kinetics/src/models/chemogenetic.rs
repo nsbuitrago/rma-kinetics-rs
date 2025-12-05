@@ -5,6 +5,7 @@ use crate::{
         dox::{DoxFields, Model as DoxModel},
     },
     pk::DoseApplyingSolout,
+    solve::{InnerSolution, PySolution, PySolver},
 };
 use derive_builder::Builder;
 use differential_equations::{
@@ -13,6 +14,9 @@ use differential_equations::{
     ode::{ODE, ODEProblem, OrdinaryNumericalMethod},
     prelude::{Interpolation, Solution},
 };
+
+#[cfg(feature = "py")]
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
 
 /// Chemogenetic model state.
 #[derive(StateTrait, Builder)]
@@ -76,6 +80,149 @@ impl State<f64> {
             plasma_clz,
             brain_clz,
         }
+    }
+}
+
+#[cfg(feature = "py")]
+#[pyclass(name = "State")]
+#[derive(Clone)]
+pub struct PyState {
+    pub inner: State<f64>,
+}
+
+#[cfg(feature = "py")]
+#[pymethods]
+impl PyState {
+    #[new]
+    #[pyo3(signature = (brain_rma=0., plasma_rma=0., tta=0., plasma_dox=0., brain_dox=0., dreadd=0., peritoneal_cno=0., plasma_cno=0., brain_cno=0., plasma_clz=0., brain_clz=0.))]
+    pub fn new(
+        brain_rma: f64,
+        plasma_rma: f64,
+        tta: f64,
+        plasma_dox: f64,
+        brain_dox: f64,
+        dreadd: f64,
+        peritoneal_cno: f64,
+        plasma_cno: f64,
+        brain_cno: f64,
+        plasma_clz: f64,
+        brain_clz: f64,
+    ) -> Self {
+        Self {
+            inner: State::new(
+                brain_rma,
+                plasma_rma,
+                tta,
+                plasma_dox,
+                brain_dox,
+                dreadd,
+                peritoneal_cno,
+                plasma_cno,
+                brain_cno,
+                plasma_clz,
+                brain_clz,
+            ),
+        }
+    }
+
+    #[getter]
+    fn get_brain_rma(&self) -> f64 {
+        self.inner.brain_rma
+    }
+    #[getter]
+    fn get_plasma_rma(&self) -> f64 {
+        self.inner.plasma_rma
+    }
+    #[getter]
+    fn get_tta(&self) -> f64 {
+        self.inner.tta
+    }
+    #[getter]
+    fn get_plasma_dox(&self) -> f64 {
+        self.inner.plasma_dox
+    }
+    #[getter]
+    fn get_brain_dox(&self) -> f64 {
+        self.inner.brain_dox
+    }
+    #[getter]
+    fn get_dreadd(&self) -> f64 {
+        self.inner.dreadd
+    }
+    #[getter]
+    fn get_peritoneal_cno(&self) -> f64 {
+        self.inner.peritoneal_cno
+    }
+    #[getter]
+    fn get_plasma_cno(&self) -> f64 {
+        self.inner.plasma_cno
+    }
+    #[getter]
+    fn get_brain_cno(&self) -> f64 {
+        self.inner.brain_cno
+    }
+    #[getter]
+    fn get_plasma_clz(&self) -> f64 {
+        self.inner.plasma_clz
+    }
+    #[getter]
+    fn get_brain_clz(&self) -> f64 {
+        self.inner.brain_clz
+    }
+    #[setter]
+    fn set_brain_rma(&mut self, value: f64) -> PyResult<()> {
+        self.inner.brain_rma = value;
+        Ok(())
+    }
+    #[setter]
+    fn set_plasma_rma(&mut self, value: f64) -> PyResult<()> {
+        self.inner.plasma_rma = value;
+        Ok(())
+    }
+    #[setter]
+    fn set_tta(&mut self, value: f64) -> PyResult<()> {
+        self.inner.tta = value;
+        Ok(())
+    }
+    #[setter]
+    fn set_plasma_dox(&mut self, value: f64) -> PyResult<()> {
+        self.inner.plasma_dox = value;
+        Ok(())
+    }
+    #[setter]
+    fn set_brain_dox(&mut self, value: f64) -> PyResult<()> {
+        self.inner.brain_dox = value;
+        Ok(())
+    }
+    #[setter]
+    fn set_dreadd(&mut self, value: f64) -> PyResult<()> {
+        self.inner.dreadd = value;
+        Ok(())
+    }
+    #[setter]
+    fn set_peritoneal_cno(&mut self, value: f64) -> PyResult<()> {
+        self.inner.peritoneal_cno = value;
+        Ok(())
+    }
+    #[setter]
+    fn set_plasma_cno(&mut self, value: f64) -> PyResult<()> {
+        self.inner.plasma_cno = value;
+        Ok(())
+    }
+    #[setter]
+    fn set_brain_cno(&mut self, value: f64) -> PyResult<()> {
+        self.inner.brain_cno = value;
+        Ok(())
+    }
+    #[setter]
+    fn set_plasma_clz(&mut self, value: f64) -> PyResult<()> {
+        self.inner.plasma_clz = value;
+        Ok(())
+    }
+    #[setter]
+    fn set_brain_clz(&mut self, value: f64) -> PyResult<()> {
+        self.inner.brain_clz = value;
+        Ok(())
     }
 }
 
@@ -148,6 +295,7 @@ const DEFAULT_DREADD_COOPERATIVITY: f64 = 1.;
 
 #[derive(Builder, Debug)]
 #[builder(derive(Debug))]
+#[cfg_attr(feature = "py", pyclass)]
 pub struct Model {
     #[builder(default = "DEFAULT_RMA_PROD")]
     pub rma_prod: f64,
@@ -295,6 +443,195 @@ impl Solve for Model {
         solution.y = y;
 
         Ok(solution)
+    }
+}
+
+#[cfg(feature = "py")]
+#[pymethods]
+impl Model {
+    #[new]
+    #[pyo3(signature = (rma_prod=DEFAULT_RMA_PROD, leaky_rma_prod=DEFAULT_LEAKY_RMA_PROD, rma_bbb_transport=DEFAULT_RMA_BBB_TRANSPORT, rma_deg=DEFAULT_RMA_DEG, tta_prod=DEFAULT_TTA_PROD, leaky_tta_prod=DEFAULT_LEAKY_TTA_PROD, tta_deg=DEFAULT_TTA_DEG, tta_kd=DEFAULT_TTA_KD, tta_cooperativity=DEFAULT_TTA_COOPERATIVITY, dox_pk_model=DoxModel::default(), dox_tta_kd=DEFAULT_DOX_TTA_KD, cno_pk_model=CNOModel::default(), cno_ec50=DEFAULT_CNO_EC50, clz_ec50=DEFAULT_CLZ_EC50, cno_cooperativity=DEFAULT_CNO_COOPERATIVITY, clz_cooperativity=DEFAULT_CLZ_COOPERATIVITY, dreadd_prod=DEFAULT_DREADD_PROD, dreadd_deg=DEFAULT_DREADD_DEG, dreadd_ec50=DEFAULT_DREADD_EC50, dreadd_cooperativity=DEFAULT_DREADD_COOPERATIVITY))]
+    pub fn create(
+        rma_prod: f64,
+        leaky_rma_prod: f64,
+        rma_bbb_transport: f64,
+        rma_deg: f64,
+        tta_prod: f64,
+        leaky_tta_prod: f64,
+        tta_deg: f64,
+        tta_kd: f64,
+        tta_cooperativity: f64,
+        dox_pk_model: DoxModel,
+        dox_tta_kd: f64,
+        cno_pk_model: CNOModel,
+        cno_ec50: f64,
+        clz_ec50: f64,
+        cno_cooperativity: f64,
+        clz_cooperativity: f64,
+        dreadd_prod: f64,
+        dreadd_deg: f64,
+        dreadd_ec50: f64,
+        dreadd_cooperativity: f64,
+    ) -> Self {
+        Self {
+            rma_prod,
+            leaky_rma_prod,
+            rma_bbb_transport,
+            rma_deg,
+            tta_prod,
+            leaky_tta_prod,
+            tta_deg,
+            tta_kd,
+            tta_cooperativity,
+            dox_pk_model,
+            dox_tta_kd,
+            cno_pk_model,
+            cno_ec50,
+            clz_ec50,
+            cno_cooperativity,
+            clz_cooperativity,
+            dreadd_prod,
+            dreadd_deg,
+            dreadd_ec50,
+            dreadd_cooperativity,
+        }
+    }
+
+    #[pyo3(name = "solve")]
+    fn py_solve(
+        &self,
+        t0: f64,
+        tf: f64,
+        dt: f64,
+        init_state: PyState,
+        solver: PySolver,
+    ) -> PyResult<PySolution> {
+        let result = match solver.solver_type.as_str() {
+            "dopri5" => {
+                let mut solver_instance =
+                    differential_equations::methods::ExplicitRungeKutta::dopri5()
+                        .rtol(solver.rtol)
+                        .atol(solver.atol)
+                        .h0(solver.dt0)
+                        .h_min(solver.min_dt)
+                        .h_max(solver.max_dt)
+                        .max_steps(solver.max_steps)
+                        .max_rejects(solver.max_rejected_steps)
+                        .safety_factor(solver.safety_factor)
+                        .min_scale(solver.min_scale)
+                        .max_scale(solver.max_scale);
+                self.solve(t0, tf, dt, init_state.inner, &mut solver_instance)
+            }
+            "kvaerno3" => {
+                let mut solver_instance =
+                    differential_equations::methods::DiagonallyImplicitRungeKutta::kvaerno423()
+                        .rtol(solver.rtol)
+                        .atol(solver.atol)
+                        .h0(solver.dt0)
+                        .h_min(solver.min_dt)
+                        .h_max(solver.max_dt)
+                        .max_steps(solver.max_steps)
+                        .max_rejects(solver.max_rejected_steps)
+                        .safety_factor(solver.safety_factor)
+                        .min_scale(solver.min_scale)
+                        .max_scale(solver.max_scale);
+                self.solve(t0, tf, dt, init_state.inner, &mut solver_instance)
+            }
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "Solver '{}' not supported",
+                    solver.solver_type
+                )));
+            }
+        };
+
+        match result {
+            Ok(solution) => Ok(PySolution {
+                inner: InnerSolution::Chemogenetic(solution),
+            }),
+            Err(e) => Err(PyValueError::new_err(format!("Failed to solve: {:?}", e))),
+        }
+    }
+
+    #[getter]
+    fn get_rma_prod(&self) -> f64 {
+        self.rma_prod
+    }
+    #[getter]
+    fn get_leaky_rma_prod(&self) -> f64 {
+        self.leaky_rma_prod
+    }
+    #[getter]
+    fn get_rma_bbb_transport(&self) -> f64 {
+        self.rma_bbb_transport
+    }
+    #[getter]
+    fn get_rma_deg(&self) -> f64 {
+        self.rma_deg
+    }
+    #[getter]
+    fn get_tta_prod(&self) -> f64 {
+        self.tta_prod
+    }
+    #[getter]
+    fn get_leaky_tta_prod(&self) -> f64 {
+        self.leaky_tta_prod
+    }
+    #[getter]
+    fn get_tta_deg(&self) -> f64 {
+        self.tta_deg
+    }
+    #[getter]
+    fn get_tta_kd(&self) -> f64 {
+        self.tta_kd
+    }
+    #[getter]
+    fn get_tta_cooperativity(&self) -> f64 {
+        self.tta_cooperativity
+    }
+    #[getter]
+    fn get_dox_pk_model(&self) -> DoxModel {
+        self.dox_pk_model.clone()
+    }
+    #[getter]
+    fn get_dox_tta_kd(&self) -> f64 {
+        self.dox_tta_kd
+    }
+    #[getter]
+    fn get_cno_pk_model(&self) -> CNOModel {
+        self.cno_pk_model.clone()
+    }
+    #[getter]
+    fn get_cno_ec50(&self) -> f64 {
+        self.cno_ec50
+    }
+    #[getter]
+    fn get_clz_ec50(&self) -> f64 {
+        self.clz_ec50
+    }
+    #[getter]
+    fn get_cno_cooperativity(&self) -> f64 {
+        self.cno_cooperativity
+    }
+    #[getter]
+    fn get_clz_cooperativity(&self) -> f64 {
+        self.clz_cooperativity
+    }
+    #[getter]
+    fn get_dreadd_prod(&self) -> f64 {
+        self.dreadd_prod
+    }
+    #[getter]
+    fn get_dreadd_deg(&self) -> f64 {
+        self.dreadd_deg
+    }
+    #[getter]
+    fn get_dreadd_ec50(&self) -> f64 {
+        self.dreadd_ec50
+    }
+    #[getter]
+    fn get_dreadd_cooperativity(&self) -> f64 {
+        self.dreadd_cooperativity
     }
 }
 

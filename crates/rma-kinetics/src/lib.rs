@@ -56,6 +56,8 @@ mod _rma_kinetics {
 #[pymodule(name = "models")]
 mod py_models {
     #[pymodule_export]
+    use super::py_chemogenetic;
+    #[pymodule_export]
     use super::py_cno;
     #[pymodule_export]
     use super::py_constitutive;
@@ -100,7 +102,6 @@ mod py_dox {
 }
 
 // CNO model python module
-
 #[cfg(feature = "py")]
 #[pymodule(name = "cno")]
 mod py_cno {
@@ -112,4 +113,14 @@ mod py_cno {
     use super::models::cno::PyState;
     #[pymodule_export]
     use super::models::cno::create_cno_schedule;
+}
+
+// Chemogenetic model python module
+#[cfg(feature = "py")]
+#[pymodule(name = "chemogenetic")]
+mod py_chemogenetic {
+    #[pymodule_export]
+    use super::models::chemogenetic::Model;
+    #[pymodule_export]
+    use super::models::chemogenetic::PyState;
 }

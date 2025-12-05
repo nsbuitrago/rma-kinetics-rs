@@ -10,6 +10,8 @@ use differential_equations::{
 };
 
 #[cfg(feature = "py")]
+pub use crate::models::chemogenetic;
+#[cfg(feature = "py")]
 pub use crate::models::cno;
 #[cfg(feature = "py")]
 pub use crate::models::constitutive;
@@ -69,6 +71,7 @@ pub enum InnerSolution {
     Dox(Solution<f64, dox::State<f64>>),
     TetOff(Solution<f64, tetoff::State<f64>>),
     CNO(Solution<f64, cno::State<f64>>),
+    Chemogenetic(Solution<f64, chemogenetic::State<f64>>),
 }
 
 /// Trait for accessing the states vector from Solution types with different State types.
@@ -122,6 +125,15 @@ impl SolutionAccess for Solution<f64, cno::State<f64>> {
     }
 }
 
+#[cfg(feature = "py")]
+impl SolutionAccess for Solution<f64, chemogenetic::State<f64>> {
+    type StateType = chemogenetic::State<f64>;
+
+    fn states(&self) -> &Vec<chemogenetic::State<f64>> {
+        &self.y
+    }
+}
+
 // A macro to access fields that exist on ALL InnerSolution variants with the same type.
 // For fields with different types (like the `y` field containing different State types),
 // use the SolutionAccess trait's `states()` method instead.
@@ -133,6 +145,7 @@ macro_rules! access_field {
             InnerSolution::Dox(s) => &s.$field,
             InnerSolution::TetOff(s) => &s.$field,
             InnerSolution::CNO(s) => &s.$field,
+            InnerSolution::Chemogenetic(s) => &s.$field,
         }
     };
 }
@@ -189,6 +202,11 @@ impl PySolution {
                     "plasma RMA is not available for the cno model",
                 ));
             }
+            InnerSolution::Chemogenetic(s) => s
+                .states()
+                .iter()
+                .map(|state| state.plasma_rma)
+                .collect::<Vec<f64>>(),
         };
 
         Ok(PyArray1::from_vec(py, plasma_rma))
@@ -218,6 +236,11 @@ impl PySolution {
                     "brain RMA is not available for the cno model",
                 ));
             }
+            InnerSolution::Chemogenetic(s) => s
+                .states()
+                .iter()
+                .map(|state| state.brain_rma)
+                .collect::<Vec<f64>>(),
         };
 
         Ok(PyArray1::from_vec(py, brain_rma))
@@ -247,6 +270,11 @@ impl PySolution {
                     "tTA is not available for the cno model",
                 ));
             }
+            InnerSolution::Chemogenetic(s) => s
+                .states()
+                .iter()
+                .map(|state| state.tta)
+                .collect::<Vec<f64>>(),
         };
 
         Ok(PyArray1::from_vec(py, tta))
@@ -276,6 +304,11 @@ impl PySolution {
                     "plasma dox is not available for the cno model",
                 ));
             }
+            InnerSolution::Chemogenetic(s) => s
+                .states()
+                .iter()
+                .map(|state| state.plasma_dox)
+                .collect::<Vec<f64>>(),
         };
 
         Ok(PyArray1::from_vec(py, plasma_dox))
@@ -305,9 +338,48 @@ impl PySolution {
                     "brain dox is not available for the cno model",
                 ));
             }
+            InnerSolution::Chemogenetic(s) => s
+                .states()
+                .iter()
+                .map(|state| state.brain_dox)
+                .collect::<Vec<f64>>(),
         };
 
         Ok(PyArray1::from_vec(py, brain_dox))
+    }
+
+    /// Get dreadd array.
+    #[getter]
+    fn dreadd<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let dreadd = match &self.inner {
+            InnerSolution::Constitutive(_) => {
+                return Err(PyValueError::new_err(
+                    "dreadd is not available for the constitutive model",
+                ));
+            }
+            InnerSolution::Dox(_) => {
+                return Err(PyValueError::new_err(
+                    "dreadd is not available for the dox model",
+                ));
+            }
+            InnerSolution::TetOff(_) => {
+                return Err(PyValueError::new_err(
+                    "dreadd is not available for the tetoff model",
+                ));
+            }
+            InnerSolution::CNO(_) => {
+                return Err(PyValueError::new_err(
+                    "dreadd is not available for the cno model",
+                ));
+            }
+            InnerSolution::Chemogenetic(s) => s
+                .states()
+                .iter()
+                .map(|state| state.dreadd)
+                .collect::<Vec<f64>>(),
+        };
+
+        Ok(PyArray1::from_vec(py, dreadd))
     }
 
     /// Get peritoneal CNO array (returned as nmol).
@@ -330,6 +402,11 @@ impl PySolution {
                 ));
             }
             InnerSolution::CNO(s) => s
+                .states()
+                .iter()
+                .map(|state| state.peritoneal_cno)
+                .collect::<Vec<f64>>(),
+            InnerSolution::Chemogenetic(s) => s
                 .states()
                 .iter()
                 .map(|state| state.peritoneal_cno)
@@ -363,6 +440,11 @@ impl PySolution {
                 .iter()
                 .map(|state| state.plasma_cno)
                 .collect::<Vec<f64>>(),
+            InnerSolution::Chemogenetic(s) => s
+                .states()
+                .iter()
+                .map(|state| state.plasma_cno)
+                .collect::<Vec<f64>>(),
         };
 
         Ok(PyArray1::from_vec(py, plasma_cno))
@@ -388,6 +470,11 @@ impl PySolution {
                 ));
             }
             InnerSolution::CNO(s) => s
+                .states()
+                .iter()
+                .map(|state| state.brain_cno)
+                .collect::<Vec<f64>>(),
+            InnerSolution::Chemogenetic(s) => s
                 .states()
                 .iter()
                 .map(|state| state.brain_cno)
@@ -421,6 +508,11 @@ impl PySolution {
                 .iter()
                 .map(|state| state.plasma_clz)
                 .collect::<Vec<f64>>(),
+            InnerSolution::Chemogenetic(s) => s
+                .states()
+                .iter()
+                .map(|state| state.plasma_clz)
+                .collect::<Vec<f64>>(),
         };
 
         Ok(PyArray1::from_vec(py, plasma_clz))
@@ -446,6 +538,11 @@ impl PySolution {
                 ));
             }
             InnerSolution::CNO(s) => s
+                .states()
+                .iter()
+                .map(|state| state.brain_clz)
+                .collect::<Vec<f64>>(),
+            InnerSolution::Chemogenetic(s) => s
                 .states()
                 .iter()
                 .map(|state| state.brain_clz)

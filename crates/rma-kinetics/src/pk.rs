@@ -69,7 +69,7 @@ impl<S: CNOFields + StateTrait<f64> + Clone> DoseApplyingSolout<S> {
 
         if dose.time > t_prev && dose.time <= t_curr {
             let mut y_dose = if is_close!(dose.time, t_curr) {
-                y_curr.clone()
+                *y_curr
             } else {
                 // this is safe to unwrap since we checked that dose.time is in
                 // the range [t_prev, t_curr], so we can never get a OutofBounds error.
@@ -109,7 +109,7 @@ impl<S: CNOFields + Clone + StateTrait<f64>> Solout<f64, S> for DoseApplyingSolo
         if let Some((dose_time, dosed_state)) = pending_dose {
             // If dose time matches the output time, use the dosed state for output
             if is_close!(dose_time, next_output_time) && next_output_time <= t_curr {
-                solution.push(next_output_time, dosed_state.clone());
+                solution.push(next_output_time, dosed_state);
                 self.last_output_time = Some(next_output_time);
                 return ControlFlag::ModifyState(dose_time, dosed_state);
             }
@@ -121,7 +121,7 @@ impl<S: CNOFields + Clone + StateTrait<f64>> Solout<f64, S> for DoseApplyingSolo
             };
 
             if !dose_already_output && dose_time <= t_curr {
-                solution.push(dose_time, dosed_state.clone());
+                solution.push(dose_time, dosed_state);
             }
 
             return ControlFlag::ModifyState(dose_time, dosed_state);
@@ -141,7 +141,7 @@ impl<S: CNOFields + Clone + StateTrait<f64>> Solout<f64, S> for DoseApplyingSolo
             None => {
                 // First time through, we need to include t0
                 if (t_prev - self.t0).abs() < f64::EPSILON {
-                    solution.push(self.t0, y_prev.clone());
+                    solution.push(self.t0, *y_prev);
                     self.last_output_time = Some(self.t0);
                     self.t0 + self.dt * self.direction
                 } else {
@@ -200,15 +200,15 @@ impl<S: CNOFields + Clone + StateTrait<f64>> Solout<f64, S> for DoseApplyingSolo
                     if (t_last - self.tf).abs() <= tol {
                         // Replace the near-duplicate last point with the exact final time
                         let _ = solution.pop();
-                        solution.push(self.tf, y_curr.clone());
+                        solution.push(self.tf, *y_curr);
                         self.last_output_time = Some(self.tf);
                     } else if t_last != self.tf {
-                        solution.push(self.tf, y_curr.clone());
+                        solution.push(self.tf, *y_curr);
                         self.last_output_time = Some(self.tf);
                     }
                 }
                 None => {
-                    solution.push(self.tf, y_curr.clone());
+                    solution.push(self.tf, *y_curr);
                     self.last_output_time = Some(self.tf);
                 }
             }

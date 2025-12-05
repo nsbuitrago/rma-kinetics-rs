@@ -20,6 +20,7 @@ pub use crate::models::dox;
 #[cfg(feature = "py")]
 pub use crate::models::tetoff;
 
+/// Solve trait for kinetic models.
 pub trait Solve {
     type State: traits::State<f64>;
 

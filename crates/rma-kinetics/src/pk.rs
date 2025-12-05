@@ -1,11 +1,17 @@
-use thiserror::Error as ErrorTrait;
+//! Pharmacokinetic model utilities.
+//!
+//! - DoseApplyingSolout: a custom solout implementation for `differential_equations` to apply drug doses and handle evenly-spaced output points.
+//! - Error: an error type for pharmacokinetic model errors.
+
 use crate::models::cno::{CNOFields, Dose};
 use differential_equations::{
     prelude::{ControlFlag, Interpolation, Solution},
     solout::Solout,
     traits::State as StateTrait,
 };
+use thiserror::Error as ErrorTrait;
 
+/// PK Errors
 #[derive(ErrorTrait, Debug)]
 pub enum Error {
     #[error("Bioavailability must be between 0 and 1")]

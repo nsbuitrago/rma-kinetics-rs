@@ -1,3 +1,29 @@
+//! Chemogenetic model.
+//!
+//! A model describing the genetic circuit for monitoring neuronal activity
+//! with released markers of activity ([Lee et al., 2024](https://doi.org/10.1038/s41587-023-02087-x), [Buitrago et al., 2025](https://doi.org/10.1101/2025.11.17.688787))
+//!
+//! ## Usage
+//!
+//! This model makes use of the [CNO ](crate::models::cno::Model) and [Doxycycline](crate::models::dox::Model) pharmacokinetic models
+//! to describe the dynamics of CNO/CLZ and doxycycline in the brain and plasma.
+//!
+//! ## Usage
+//!
+//! ```rust
+//! use rma_kinetics::{models::chemogenetic, cno, Solve};
+//! use differential_equations::methods::ExplicitRungeKutta;
+//!
+//! let dose = cno::Dose::new(0.03, 0.);
+//! let cno_pk = cno::Model::builder().doses(vec![dose]).build()?;
+//! let model = chemogenetic::Model::builder().cno_pk_model(cno_pk).build()?;
+//! let init_state = chemogenetic::State::zeros();
+//! let mut solver = ExplicitRungeKutta::dopri5();
+//!
+//! let solution = model.solve(0., 48., 1., init_state, &mut solver);
+//! assert!(solution.is_ok());
+//! ```
+
 use crate::{
     Solve,
     models::{
@@ -5,7 +31,6 @@ use crate::{
         dox::{DoxFields, Model as DoxModel},
     },
     pk::DoseApplyingSolout,
-    solve::{InnerSolution, PySolution, PySolver},
 };
 use derive_builder::Builder;
 use differential_equations::{
@@ -17,6 +42,9 @@ use differential_equations::{
 
 #[cfg(feature = "py")]
 use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+
+#[cfg(feature = "py")]
+use crate::solve::{InnerSolution, PySolution, PySolver};
 
 /// Chemogenetic model state.
 #[derive(StateTrait, Builder)]

@@ -16,7 +16,7 @@
 //!
 //! ## Getting Started
 //!
-//! Each submodule in `models` contains a `Model` struct and a `State` struct.
+//! Each submodule in `models` contains at least a `Model` struct and a `State` struct.
 //! For example, to model simple constitutive marker expression,
 //!
 //! ```rust

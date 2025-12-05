@@ -1,3 +1,26 @@
+//! CNO pharmacokinetic model.
+//!
+//! A pharmacokinetic model describing the dynamics of clozapine-N-oxide (CNO)
+//! and it's parent compound, clozapine (CLZ) in the brain and plasma.
+//!
+//! ## Usage
+//!
+//! CNO is assumed to be administered via bolus injection.
+//! To set the administration schedule, see the [`Dose`] struct and the [`create_cno_schedule`] function.
+//!
+//! ```rust
+//! use rma_kinetics::{models::cno, Solve};
+//! use differential_equations::methods::ExplicitRungeKutta;
+//!
+//! let dose = cno::Dose::new(0.03, 0.);
+//! let model = cno::Model::builder().doses(vec![dose]).build()?;
+//! let init_state = cno::State::zeros();
+//! let mut solver = ExplicitRungeKutta::dopri5();
+//!
+//! let solution = model.solve(0., 48., 1., init_state, &mut solver);
+//! assert!(solution.is_ok());
+//! ```
+
 use crate::{Solve, pk::DoseApplyingSolout};
 use derive_builder::Builder;
 use differential_equations::{

@@ -1,3 +1,27 @@
+//! Tet-Off RMA expression model.
+//!
+//! The Tet-Off model describes the expression of a synthetic serum reporter
+//! under the tetracycline responsive operator.
+//!
+//! ## Usage
+//!
+//! The differential_equations crate provides a number of different solvers to choose from.
+//! Here, we use the ExplicitRungeKutta solver with the dopri5 method and pass it to the solve method.
+//!
+//! This model makes use of the [Doxycycline pharmacokinetic model](crate::models::dox::Model)
+//! to describe the dynamics of doxycycline in the brain and plasma.
+//!
+//! ```rust
+//! use rma_kinetics::{models::tetoff, Solve};
+//! use differential_equations::methods::ExplicitRungeKutta;
+//!
+//! let model = tetoff::Model::default();
+//! let init_state = tetoff::State::zeros();
+//! let mut solver = ExplicitRungeKutta::dopri5();
+//!
+//! let solution = model.solve(0., 100., 1., init_state, &mut solver);
+//! assert!(solution.is_ok());
+//!
 use crate::models::dox::{DoxFields, Model as DoxModel};
 use derive_builder::Builder;
 use differential_equations::{derive::State as StateTrait, ode::ODE};
@@ -145,30 +169,41 @@ const DEFAULT_TTA_KD: f64 = 10.;
 const DEFAULT_TTA_COOPERATIVITY: f64 = 2.;
 const DEFAULT_DOX_TTA_KD: f64 = 10.;
 
+/// Tet-Off RMA expression model.
 #[cfg_attr(feature = "py", pyclass)]
 #[cfg_attr(feature = "py", derive(PySolve))]
 #[cfg_attr(feature = "py", py_solve(variant = "TetOff"))]
 #[derive(Solve, Builder)]
 #[builder(derive(Debug))]
 pub struct Model {
+    /// RMA production rate.
     #[builder(default = "DEFAULT_RMA_PROD")]
     pub rma_prod: f64,
+    /// Leaky RMA production rate.
     #[builder(default = "DEFAULT_LEAKY_RMA_PROD")]
     pub leaky_rma_prod: f64,
+    /// RMA blood-brain barrier transport rate.
     #[builder(default = "DEFAULT_RMA_BBB_TRANSPORT")]
     pub rma_bbb_transport: f64,
+    /// RMA degradation rate.
     #[builder(default = "DEFAULT_RMA_DEG")]
     pub rma_deg: f64,
+    /// tTA production rate.
     #[builder(default = "DEFAULT_TTA_PROD")]
     pub tta_prod: f64,
+    /// tTA degradation rate.
     #[builder(default = "DEFAULT_TTA_DEG")]
     pub tta_deg: f64,
+    /// tTA-TetO Kd
     #[builder(default = "DEFAULT_TTA_KD")]
     pub tta_kd: f64,
+    /// tTA Hill cooperativity.
     #[builder(default = "DEFAULT_TTA_COOPERATIVITY")]
     pub tta_cooperativity: f64,
+    /// Doxycycline pharmacokinetic model.
     #[builder(default = "DoxModel::default()")]
     pub dox_pk_model: DoxModel,
+    /// Doxycycline-TetO Kd.
     #[builder(default = "DEFAULT_DOX_TTA_KD")]
     pub dox_tta_kd: f64,
 }

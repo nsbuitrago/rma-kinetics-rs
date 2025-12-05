@@ -16,6 +16,7 @@
 //! - Degradation rate: 0.007 1/hr
 //!
 //! ## Usage
+//!
 //! To solve the model over a given period of time, we use the solvers provided by
 //! the `differential_equations` dependency. From here, we can use the provided `Solve`
 //! trait and use the `solve` method on our model.
@@ -34,7 +35,7 @@
 //! let solution = solution.unwrap();
 //! println!("{:?}", solution.y);
 //! ```
-//!
+
 use derive_builder::Builder;
 use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Matrix};
 use rma_kinetics_derive::Solve;
@@ -137,19 +138,23 @@ const DEFAULT_DEG: f64 = 0.007;
 
 /// Constitutive RMA expression model.
 ///
-/// ## Creating a new Model
+/// The [`default`](Model::default), [`new`](Model::new) or [`builder`](Model::builder) methods can be used to create a new model instance.
+/// See `solve` for more information on integration.
 ///
-/// The `default`, `new` or `builder` methods can be used to create a new model instance.
+///
 #[cfg_attr(feature = "py", pyclass)]
 #[cfg_attr(feature = "py", derive(PySolve))]
 #[cfg_attr(feature = "py", py_solve(variant = "Constitutive"))]
 #[derive(Solve, Builder)]
 #[builder(derive(Debug))]
 pub struct Model {
+    /// RMA production rate.
     #[builder(default = "DEFAULT_PROD")]
     pub prod: f64,
+    /// RMA blood-brain barrier transport rate.
     #[builder(default = "DEFAULT_BBB_TRANSPORT")]
     pub bbb_transport: f64,
+    /// RMA degradation rate.
     #[builder(default = "DEFAULT_DEG")]
     pub deg: f64,
 }

@@ -1,3 +1,43 @@
+//! Doxycycline pharmacokinetic model.
+//!
+//! A simple pharmacokinetic model describing doxycyline dynamics in the brain and plasma
+//! following food or water intake.
+//!
+//! ## Parameters
+//!
+//! Doxycycline is assumed to be adminstered via food or water.
+//! The vehicle intake rate is the input of food or water per unit time.
+//!
+//! Bioavailability is the fraction of the dose that is absorbed into the plasma.
+//!
+//! The following rates are used to desribe absorption, elimination, and transport between the plasma and brain.
+//! - absorption: the rate at which doxycycline is absorbed into the plasma.
+//! - elimination: the rate at which doxycycline is eliminated from the plasma.
+//! - brain_transport: the rate at which doxycycline is transported from the plasma to the brain.
+//! - plasma_transport: the rate at which doxycycline is transported from the brain to the plasma.
+//! - plasma_vd: the volume of distribution of doxycycline in the plasma.
+//!
+//! By default, the model does not set any dox administration.
+//! To set the periods of dox administration, use the `schedule` method on the model builder.
+//!
+//! ## Usage
+//!
+//! To solve the model over a given period of time, we use the solvers provided by
+//! the `differential_equations` dependency. From here, we can use the provided `Solve`
+//! trait and use the `solve` method on our model.
+//!
+//! ```rust
+//! use rma_kinetics::{models::dox, Solve};
+//! use differential_equations::methods::ExplicitRungeKutta;
+//!
+//! let dox_access_period = dox::AccessPeriod::new(40., 0.0..=24.);
+//! let model = dox::Model::builder().schedule(vec![dox_access_period]).build()?;
+//! let init_state = dox::State::zeros();
+//! let mut solver = ExplicitRungeKutta::dopri5();
+//!
+//! let solution = model.solve(0., 48., 1., init_state, &mut solver);
+//! assert!(solution.is_ok());
+
 use crate::pk::Error;
 use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Matrix};
 use rma_kinetics_derive::Solve;
@@ -52,6 +92,16 @@ impl AccessPeriod {
 }
 
 /// Create a dox schedule given a dose, start time, duration of the access period, interval between access periods, and number of repeated administrations.
+///
+/// ## Usage
+/// ```rust
+/// use rma_kinetics::models::dox::create_dox_schedule;
+///
+/// // creates a schedule with two access periods with a
+/// // duration of 24 hours and an interval of 24 hours.
+/// let schedule = create_dox_schedule(40., 0., 24., Some(1), Some(24.));
+/// assert_eq!(schedule.len(), 2);
+/// ```
 #[cfg_attr(feature = "py", pyfunction)]
 #[cfg_attr(feature = "py", pyo3(signature = (dose, start_time, duration, repeat=None, interval=None)))]
 pub fn create_dox_schedule(
@@ -134,20 +184,17 @@ impl PyState {
     fn get_plasma_dox(&self) -> f64 {
         self.inner.plasma_dox
     }
-
     /// Get brain dox state
     #[getter]
     fn get_brain_dox(&self) -> f64 {
         self.inner.brain_dox
     }
-
     /// Set plasma dox state
     #[setter]
     fn set_plasma_dox(&mut self, value: f64) -> PyResult<()> {
         self.inner.plasma_dox = value;
         Ok(())
     }
-
     /// Set brain dox state
     #[setter]
     fn set_brain_dox(&mut self, value: f64) -> PyResult<()> {
@@ -190,14 +237,23 @@ impl DoxFields for State<f64> {
 #[cfg_attr(feature = "py", py_solve(variant = "Dox"))]
 #[derive(Debug, Solve, Clone)]
 pub struct Model {
+    /// Vehicle (food or water) intake rate.
     pub vehicle_intake: f64,
+    /// Bioavailability in the range [0, 1].
     pub bioavailability: f64,
+    /// Plasma absorption rate.
     pub absorption: f64,
+    /// Plasma elimination rate.
     pub elimination: f64,
+    /// Plasma to brain transport rate.
     pub brain_transport: f64,
+    /// Brain to plasma transport rate.
     pub plasma_transport: f64,
+    /// Plasma volume of distribution.
     pub plasma_vd: f64,
+    /// Dox administration schedule.
     pub schedule: Vec<AccessPeriod>,
+    /// Dose concentration for each access period (typically in nM if dose is given in mg).
     pub dose_concentration: Vec<f64>,
 }
 
@@ -311,6 +367,7 @@ impl ODE<f64, State<f64>> for Model {
     }
 }
 
+/// Dox model builder.
 pub struct ModelBuilder {
     pub vehicle_intake: f64,
     pub bioavailability: f64,

@@ -27,7 +27,7 @@
 //! trait and use the `solve` method on our model.
 //!
 //! ```rust
-//! use rma_kinetics::{models::dox, Solve};
+//! use rma_kinetics::{models::dox, pk::Error, Solve};
 //! use differential_equations::methods::ExplicitRungeKutta;
 //!
 //! let dox_access_period = dox::AccessPeriod::new(40., 0.0..=24.);
@@ -37,6 +37,9 @@
 //!
 //! let solution = model.solve(0., 48., 1., init_state, &mut solver);
 //! assert!(solution.is_ok());
+//! Ok::<(), Error>(())
+//! ```
+//!
 
 use crate::pk::Error;
 use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Matrix};

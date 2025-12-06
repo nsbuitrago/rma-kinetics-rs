@@ -19,6 +19,7 @@
 //!
 //! let solution = model.solve(0., 48., 1., init_state, &mut solver);
 //! assert!(solution.is_ok());
+//! Ok::<(), cno::ModelBuilderError>(())
 //! ```
 
 use crate::{Solve, pk::DoseApplyingSolout};

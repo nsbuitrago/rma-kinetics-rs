@@ -11,7 +11,7 @@
 //! ## Usage
 //!
 //! ```rust
-//! use rma_kinetics::{models::chemogenetic, cno, Solve};
+//! use rma_kinetics::{models::{chemogenetic, cno}, Solve};
 //! use differential_equations::methods::ExplicitRungeKutta;
 //!
 //! let dose = cno::Dose::new(0.03, 0.);
@@ -22,6 +22,7 @@
 //!
 //! let solution = model.solve(0., 48., 1., init_state, &mut solver);
 //! assert!(solution.is_ok());
+//! Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
 use crate::{

@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Nicolas Buitrago <mail@nsbuitrago.xyz>"]
 license = "MIT"
 description = "RMA Kinetic Models"

@@ -7,6 +7,7 @@ version = "0.1.0"
 authors = ["Nicolas Buitrago <mail@nsbuitrago.xyz>"]
 license = "MIT"
 description = "RMA Kinetic Models"
+repository = "https://github.com/nsbuitrago/rma-kinetics-rs"
 homepage = "https://github.com/nsbuitrago/rma-kinetics-rs"
 edition = "2024"
 

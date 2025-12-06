@@ -4,12 +4,13 @@ version = { workspace = true }
 authors = { workspace = true }
 license = { workspace = true }
 description = { workspace = true }
+repository = { workspace = true }
 edition = { workspace = true }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "rma_kinetics"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "lib"]
 
 [dependencies]
 differential-equations = { workspace = true }

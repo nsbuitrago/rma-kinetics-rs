@@ -17,8 +17,10 @@ differential-equations = { workspace = true }
 thiserror = { workspace = true }
 derive_builder = { workspace = true }
 rma-kinetics-derive = { workspace = true }
+serde = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }
 numpy = { workspace = true, optional = true }
 
 [features]
 py = ["dep:pyo3", "dep:numpy", "rma-kinetics-derive/py"]
+serde = ["dep:serde"]

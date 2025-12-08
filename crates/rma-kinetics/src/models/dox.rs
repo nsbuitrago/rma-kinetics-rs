@@ -52,11 +52,15 @@ use pyo3::{PyResult, exceptions::PyValueError, pyclass, pyfunction, pymethods};
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 const DOX_MW: f64 = 444.4; // g/mol
 
 /// Defines the concentration and period of access of dox food or water.
-#[derive(Debug, Clone)]
 #[cfg_attr(feature = "py", pyclass(name = "AccessPeriod"))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct AccessPeriod {
     pub dose: f64,
     pub time: RangeInclusive<f64>,
@@ -130,6 +134,7 @@ pub fn create_dox_schedule(
 }
 
 /// Dox model state
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(StateTrait)]
 pub struct State<T> {
     pub plasma_dox: T,
@@ -238,6 +243,7 @@ impl DoxFields for State<f64> {
 #[cfg_attr(feature = "py", pyclass)]
 #[cfg_attr(feature = "py", derive(PySolve))]
 #[cfg_attr(feature = "py", py_solve(variant = "Dox"))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Solve, Clone)]
 pub struct Model {
     /// Vehicle (food or water) intake rate.

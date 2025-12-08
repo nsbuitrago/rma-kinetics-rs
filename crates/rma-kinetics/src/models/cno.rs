@@ -37,12 +37,16 @@ use pyo3::{PyResult, exceptions::PyValueError, pyclass, pyfunction, pymethods};
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 const CNO_MW: f64 = 342.8; // g/mol
 
 /// Defines a CNO dose given an amount in mg and administration time.
 /// Assumes this is an instantaneous injection.
-#[derive(Debug, Clone)]
 #[cfg_attr(feature = "py", pyclass)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone)]
 pub struct Dose {
     pub mg: f64,
     pub nmol: f64,
@@ -128,6 +132,7 @@ pub fn create_cno_schedule(
 }
 
 /// CNO model state
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(StateTrait)]
 pub struct State<T> {
     pub peritoneal_cno: T,
@@ -328,6 +333,7 @@ const DEFAULT_CLZ_BRAIN_VD: f64 = 8.87e-2;
 
 /// CNO PK model
 #[cfg_attr(feature = "py", pyclass)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Builder)]
 #[builder(derive(Debug))]
 pub struct Model {

@@ -47,7 +47,11 @@ use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Chemogenetic model state.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(StateTrait, Builder)]
 #[builder(derive(Debug))]
 pub struct State<T> {
@@ -322,9 +326,10 @@ const DEFAULT_DREADD_DEG: f64 = 1.;
 const DEFAULT_DREADD_EC50: f64 = 6.79;
 const DEFAULT_DREADD_COOPERATIVITY: f64 = 1.;
 
+#[cfg_attr(feature = "py", pyclass)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Builder, Debug)]
 #[builder(derive(Debug))]
-#[cfg_attr(feature = "py", pyclass)]
 pub struct Model {
     #[builder(default = "DEFAULT_RMA_PROD")]
     pub rma_prod: f64,

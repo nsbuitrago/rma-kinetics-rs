@@ -46,7 +46,11 @@ use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Constitutive model state.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(StateTrait)]
 pub struct State<T> {
     pub brain_rma: T,
@@ -138,13 +142,13 @@ const DEFAULT_DEG: f64 = 0.007;
 
 /// Constitutive RMA expression model.
 ///
-/// The [`default`](Model::default), [`new`](Model::new) or [`builder`](Model::builder) methods can be used to create a new model instance.
-/// See `solve` for more information on integration.
-///
-///
+/// The [`default`](Model::default), [`new`](Model::new) or [`builder`](Model::builder)
+/// methods can be used to create a new model instance. See `solve` for more
+/// information on integration.
 #[cfg_attr(feature = "py", pyclass)]
 #[cfg_attr(feature = "py", derive(PySolve))]
 #[cfg_attr(feature = "py", py_solve(variant = "Constitutive"))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Solve, Builder)]
 #[builder(derive(Debug))]
 pub struct Model {

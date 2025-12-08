@@ -42,6 +42,7 @@ tests = [
 ]
 docs = [
     "mkdocs-material>=9.7.0",
+    "mkdocstrings[python]>=0.29.1",
 ]
 dev = [
     "diffopt>=1.5.0",

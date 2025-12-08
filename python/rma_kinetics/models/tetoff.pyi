@@ -5,13 +5,13 @@ Tet-Off RMA expression model.
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from .. import Solution
     from ..solvers import Solver
     from . import dox
-    from .. import Solution
 
 class Model:
     """Tet-Off RMA expression model."""
-    
+
     def __init__(
         self,
         rma_prod: float = 0.2,
@@ -23,72 +23,42 @@ class Model:
         tta_kd: float = 10.0,
         tta_cooperativity: float = 2.0,
         dox_pk_model: dox.Model = ...,
-        dox_tta_kd: float = 10.0
+        dox_tta_kd: float = 10.0,
     ) -> None: ...
-    
     def solve(
-        self,
-        t0: float,
-        tf: float,
-        dt: float,
-        init_state: State,
-        solver: Solver
+        self, t0: float, tf: float, dt: float, init_state: State, solver: Solver
     ) -> Solution: ...
 
 class State:
     """
     Tet-Off model state.
-
-    Arguments
-    ---------
-    brain_rma: float (Optional, Default: 0.0 nM)
-        Brain RMA concentration (concentration), by default 0.0 nM
-    plasma_rma: float (Optional, Default: 0.0 nM)
-        Plasma RMA concentration (concentration), by default 0.0 nM
-    tta: float (Optional, Default: 0.0 nM)
-        tTA concentration (concentration), by default 0.0 nM
-    brain_dox: float (Optional, Default: 0.0 nM)
-        Brain dox concentration (concentration), by default 0.0 nM
-    plasma_dox: float (Optional, Default: 0.0 nM)
-        Plasma dox concentration (concentration), by default 0.0 nM
     """
-    
+
     def __init__(
         self,
         brain_rma: float = 0.0,
         plasma_rma: float = 0.0,
         tta: float = 0.0,
         brain_dox: float = 0.0,
-        plasma_dox: float = 0.0
+        plasma_dox: float = 0.0,
     ) -> None: ...
-    
     @property
     def brain_rma(self) -> float: ...
-    
     @brain_rma.setter
     def brain_rma(self, value: float) -> None: ...
-    
     @property
     def plasma_rma(self) -> float: ...
-    
     @plasma_rma.setter
     def plasma_rma(self, value: float) -> None: ...
-    
     @property
     def tta(self) -> float: ...
-    
     @tta.setter
     def tta(self, value: float) -> None: ...
-    
     @property
     def brain_dox(self) -> float: ...
-    
     @brain_dox.setter
     def brain_dox(self, value: float) -> None: ...
-    
     @property
     def plasma_dox(self) -> float: ...
-    
     @plasma_dox.setter
     def plasma_dox(self, value: float) -> None: ...
-

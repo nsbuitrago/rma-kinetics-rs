@@ -14,7 +14,7 @@ rs-dev:
     @cargo check
 
 docs-dev:
-    @uv run mkdocs serve --watch docs
+    @uv run --group docs mkdocs serve --watch docs
 
 notebook name:
     @uv run marimo edit notebooks/{{name}}.py

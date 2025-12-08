@@ -49,6 +49,8 @@ use pyo3::prelude::*;
 mod _rma_kinetics {
     #[pymodule_export]
     use super::py_models;
+    #[pymodule_export]
+    use super::solve::PySolution;
 }
 
 /// Kinetic models Python module

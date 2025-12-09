@@ -267,6 +267,8 @@ mod tests {
         let unwrapped_solution = solution.unwrap();
         assert!(unwrapped_solution.plasma_rma().is_ok());
         assert!(unwrapped_solution.plasma_dox().is_err());
+        assert!(unwrapped_solution.max_plasma_rma().is_ok());
+        assert!(unwrapped_solution.max_tta().is_err());
     }
 
     #[test]

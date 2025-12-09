@@ -126,6 +126,10 @@ impl SolutionAccess for Solution<f64, State<f64>> {
             .collect::<Vec<f64>>())
     }
 
+    fn max_brain_rma(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, brain_rma))
+    }
+
     fn plasma_rma(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Ok(self
             .y
@@ -134,8 +138,16 @@ impl SolutionAccess for Solution<f64, State<f64>> {
             .collect::<Vec<f64>>())
     }
 
+    fn max_plasma_rma(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, plasma_rma))
+    }
+
     fn tta(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Ok(self.y.iter().map(|state| state.tta).collect::<Vec<f64>>())
+    }
+
+    fn max_tta(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, tta))
     }
 
     fn plasma_dox(&self) -> Result<Vec<f64>, SpeciesAccessError> {
@@ -146,12 +158,20 @@ impl SolutionAccess for Solution<f64, State<f64>> {
             .collect::<Vec<f64>>())
     }
 
+    fn max_plasma_dox(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, plasma_dox))
+    }
+
     fn brain_dox(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Ok(self
             .y
             .iter()
             .map(|state| state.brain_dox)
             .collect::<Vec<f64>>())
+    }
+
+    fn max_brain_dox(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, brain_dox))
     }
 
     fn dreadd(&self) -> Result<Vec<f64>, SpeciesAccessError> {
@@ -162,12 +182,20 @@ impl SolutionAccess for Solution<f64, State<f64>> {
             .collect::<Vec<f64>>())
     }
 
+    fn max_dreadd(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, dreadd))
+    }
+
     fn peritoneal_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Ok(self
             .y
             .iter()
             .map(|state| state.peritoneal_cno)
             .collect::<Vec<f64>>())
+    }
+
+    fn max_peritoneal_cno(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, peritoneal_cno))
     }
 
     fn plasma_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
@@ -178,12 +206,20 @@ impl SolutionAccess for Solution<f64, State<f64>> {
             .collect::<Vec<f64>>())
     }
 
+    fn max_plasma_cno(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, plasma_cno))
+    }
+
     fn brain_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Ok(self
             .y
             .iter()
             .map(|state| state.brain_cno)
             .collect::<Vec<f64>>())
+    }
+
+    fn max_brain_cno(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, brain_cno))
     }
 
     fn plasma_clz(&self) -> Result<Vec<f64>, SpeciesAccessError> {
@@ -194,12 +230,20 @@ impl SolutionAccess for Solution<f64, State<f64>> {
             .collect::<Vec<f64>>())
     }
 
+    fn max_plasma_clz(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, plasma_clz))
+    }
+
     fn brain_clz(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Ok(self
             .y
             .iter()
             .map(|state| state.brain_clz)
             .collect::<Vec<f64>>())
+    }
+
+    fn max_brain_clz(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, brain_clz))
     }
 }
 
@@ -815,6 +859,14 @@ mod tests {
         assert!(solution.plasma_cno().is_ok());
         assert!(solution.plasma_rma().is_ok());
         assert!(solution.plasma_dox().is_ok());
+        assert!(solution.max_plasma_cno().is_ok());
+        assert!(solution.max_plasma_rma().is_ok());
+        assert!(solution.max_plasma_dox().is_ok());
+
+        // test simulation with high leaky rma prod
+        let model = Model::builder().leaky_rma_prod(0.2).build()?;
+        let solution = model.solve(0., 48., 1., state, &mut solver);
+        assert!(solution.is_ok());
 
         Ok(())
     }

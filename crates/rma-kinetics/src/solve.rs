@@ -96,16 +96,43 @@ pub enum InnerSolution {
 /// Trait for accessing the species vectors from Solution types with different State types.
 pub trait SolutionAccess {
     fn brain_rma(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_brain_rma(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn plasma_rma(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_plasma_rma(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn tta(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_tta(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn plasma_dox(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_plasma_dox(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn brain_dox(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_brain_dox(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn dreadd(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_dreadd(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn peritoneal_cno(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_peritoneal_cno(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn plasma_cno(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_plasma_cno(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn brain_cno(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_brain_cno(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn plasma_clz(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_plasma_clz(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn brain_clz(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_brain_clz(&self) -> Result<(f64, f64), SpeciesAccessError>;
+}
+
+#[macro_export]
+macro_rules! max_species {
+    ($sln:expr, $species:ident) => {
+        $sln.y
+            .iter()
+            .enumerate()
+            .fold((0.0, 0.0), |(tmax, max), (idx, state)| {
+                if state.$species > max {
+                    ($sln.t[idx], state.$species)
+                } else {
+                    (tmax, max)
+                }
+            })
+    };
 }
 
 /// Macro to implement SolutionAccess for models that only have brain_rma and plasma_rma.
@@ -113,8 +140,8 @@ pub trait SolutionAccess {
 #[macro_export]
 macro_rules! impl_solution_access_basic_rma {
     ($solution_type:ty, $state_type:ty) => {
-        impl crate::solve::SolutionAccess for $solution_type {
-            fn brain_rma(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+        impl $crate::solve::SolutionAccess for $solution_type {
+            fn brain_rma(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
                 Ok(self
                     .y
                     .iter()
@@ -122,7 +149,11 @@ macro_rules! impl_solution_access_basic_rma {
                     .collect::<Vec<f64>>())
             }
 
-            fn plasma_rma(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+            fn max_brain_rma(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Ok($crate::max_species!(self, brain_rma))
+            }
+
+            fn plasma_rma(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
                 Ok(self
                     .y
                     .iter()
@@ -130,32 +161,80 @@ macro_rules! impl_solution_access_basic_rma {
                     .collect::<Vec<f64>>())
             }
 
-            fn tta(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
-                Err(crate::solve::SpeciesAccessError::NoTta)
+            fn max_plasma_rma(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Ok($crate::max_species!(self, plasma_rma))
             }
-            fn plasma_dox(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
-                Err(crate::solve::SpeciesAccessError::NoPlasmaDox)
+
+            fn tta(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoTta)
             }
-            fn brain_dox(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
-                Err(crate::solve::SpeciesAccessError::NoBrainDox)
+
+            fn max_tta(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoTta)
             }
-            fn dreadd(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
-                Err(crate::solve::SpeciesAccessError::NoDreadd)
+
+            fn plasma_dox(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoPlasmaDox)
             }
-            fn peritoneal_cno(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
-                Err(crate::solve::SpeciesAccessError::NoPeritonealCno)
+
+            fn max_plasma_dox(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoPlasmaDox)
             }
-            fn plasma_cno(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
-                Err(crate::solve::SpeciesAccessError::NoPlasmaCno)
+
+            fn brain_dox(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoBrainDox)
             }
-            fn brain_cno(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
-                Err(crate::solve::SpeciesAccessError::NoBrainCno)
+
+            fn max_brain_dox(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoBrainDox)
             }
-            fn plasma_clz(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
-                Err(crate::solve::SpeciesAccessError::NoPlasmaClz)
+
+            fn dreadd(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoDreadd)
             }
-            fn brain_clz(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
-                Err(crate::solve::SpeciesAccessError::NoBrainClz)
+
+            fn max_dreadd(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoDreadd)
+            }
+
+            fn peritoneal_cno(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoPeritonealCno)
+            }
+
+            fn max_peritoneal_cno(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoPeritonealCno)
+            }
+
+            fn plasma_cno(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoPlasmaCno)
+            }
+
+            fn max_plasma_cno(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoPlasmaCno)
+            }
+
+            fn brain_cno(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoBrainCno)
+            }
+
+            fn max_brain_cno(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoBrainCno)
+            }
+
+            fn plasma_clz(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoPlasmaClz)
+            }
+
+            fn max_plasma_clz(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoPlasmaClz)
+            }
+
+            fn brain_clz(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoBrainClz)
+            }
+
+            fn max_brain_clz(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoBrainClz)
             }
         }
     };

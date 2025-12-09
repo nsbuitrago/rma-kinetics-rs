@@ -102,6 +102,10 @@ impl SolutionAccess for Solution<f64, State<f64>> {
             .collect::<Vec<f64>>())
     }
 
+    fn max_brain_rma(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, brain_rma))
+    }
+
     fn plasma_rma(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Ok(self
             .y
@@ -110,8 +114,16 @@ impl SolutionAccess for Solution<f64, State<f64>> {
             .collect::<Vec<f64>>())
     }
 
+    fn max_plasma_rma(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, plasma_rma))
+    }
+
     fn tta(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Ok(self.y.iter().map(|state| state.tta).collect::<Vec<f64>>())
+    }
+
+    fn max_tta(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, tta))
     }
 
     fn brain_dox(&self) -> Result<Vec<f64>, SpeciesAccessError> {
@@ -122,6 +134,10 @@ impl SolutionAccess for Solution<f64, State<f64>> {
             .collect::<Vec<f64>>())
     }
 
+    fn max_brain_dox(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, brain_dox))
+    }
+
     fn plasma_dox(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Ok(self
             .y
@@ -130,22 +146,55 @@ impl SolutionAccess for Solution<f64, State<f64>> {
             .collect::<Vec<f64>>())
     }
 
+    fn max_plasma_dox(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Ok(crate::max_species!(self, plasma_dox))
+    }
+
     fn dreadd(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Err(SpeciesAccessError::NoDreadd)
     }
+
+    fn max_dreadd(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoDreadd)
+    }
+
     fn peritoneal_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Err(SpeciesAccessError::NoPeritonealCno)
     }
+
+    fn max_peritoneal_cno(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPeritonealCno)
+    }
+
     fn plasma_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Err(SpeciesAccessError::NoPlasmaCno)
     }
+
+    fn max_plasma_cno(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaCno)
+    }
+
     fn brain_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Err(SpeciesAccessError::NoBrainCno)
     }
+
+    fn max_brain_cno(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoBrainCno)
+    }
+
     fn plasma_clz(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Err(SpeciesAccessError::NoPlasmaClz)
     }
+
+    fn max_plasma_clz(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaClz)
+    }
+
     fn brain_clz(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoBrainClz)
+    }
+
+    fn max_brain_clz(&self) -> Result<(f64, f64), SpeciesAccessError> {
         Err(SpeciesAccessError::NoBrainClz)
     }
 }
@@ -433,6 +482,10 @@ mod tests {
         assert!(unwrapped_solution.plasma_dox().is_ok());
         assert!(unwrapped_solution.plasma_rma().is_ok());
         assert!(unwrapped_solution.plasma_cno().is_err());
+        assert!(unwrapped_solution.max_plasma_rma().is_ok());
+        assert!(unwrapped_solution.max_tta().is_ok());
+        assert!(unwrapped_solution.max_plasma_dox().is_ok());
+        assert!(unwrapped_solution.max_dreadd().is_err());
 
         Ok(())
     }

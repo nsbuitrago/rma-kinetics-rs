@@ -60,3 +60,8 @@ class Solution:
 
     def elapsed_time(self) -> float: ...
     """Returns the elapsed time in seconds."""
+
+    def apply_noise(self, noise_level: float) -> None:
+        """
+        Apply standard normal noise of a given strength to the plasma RMA array.
+        """

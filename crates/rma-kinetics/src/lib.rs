@@ -38,7 +38,7 @@ pub mod models;
 pub mod pk;
 mod solve;
 
-pub use solve::{SolutionAccess, Solve};
+pub use solve::{ApplyNoise, SolutionAccess, Solve};
 
 #[cfg(feature = "py")]
 use pyo3::prelude::*;
@@ -66,6 +66,8 @@ mod py_models {
     #[pymodule_export]
     use super::py_dox;
     #[pymodule_export]
+    use super::py_oscillation;
+    #[pymodule_export]
     use super::py_tetoff;
 }
 
@@ -77,6 +79,16 @@ mod py_constitutive {
     use super::models::constitutive::Model;
     #[pymodule_export]
     use super::models::constitutive::PyState;
+}
+
+/// Oscillation model Python module
+#[cfg(feature = "py")]
+#[pymodule(name = "oscillation")]
+mod py_oscillation {
+    #[pymodule_export]
+    use super::models::oscillation::Model;
+    #[pymodule_export]
+    use super::models::oscillation::PyState;
 }
 
 /// TetOff model python module

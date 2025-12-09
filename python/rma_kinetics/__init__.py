@@ -18,3 +18,4 @@ sys.modules[__name__ + ".models.tetoff"] = models.tetoff
 sys.modules[__name__ + ".models.dox"] = models.dox
 sys.modules[__name__ + ".models.cno"] = models.cno
 sys.modules[__name__ + ".models.chemogenetic"] = models.chemogenetic
+sys.modules[__name__ + ".models.oscillation"] = models.oscillation

@@ -8,6 +8,7 @@
 //! - Constitutive - a constitutively expressed synthetic serum reporter
 //! - TetOff - serum reporter expressed under the tetracycline responsive operator
 //! - Chemogenetic - neuronal activity induced + doxycycline gated serum reporter expression
+//! - Oscillation - proxy for monitoring rapidly changing gene expression
 //! - Dox - doxycycline pharmacokinetic model
 //! - CNO - clozapine-N-oxide/clozapine pharmacokinetic model
 
@@ -15,4 +16,5 @@ pub mod chemogenetic;
 pub mod cno;
 pub mod constitutive;
 pub mod dox;
+pub mod oscillation;
 pub mod tetoff;

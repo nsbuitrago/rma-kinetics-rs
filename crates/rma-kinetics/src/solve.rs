@@ -18,6 +18,8 @@ pub use crate::models::constitutive;
 #[cfg(feature = "py")]
 pub use crate::models::dox;
 #[cfg(feature = "py")]
+pub use crate::models::oscillation;
+#[cfg(feature = "py")]
 pub use crate::models::tetoff;
 
 #[derive(Debug)]
@@ -88,6 +90,7 @@ pub enum InnerSolution {
     TetOff(Solution<f64, tetoff::State<f64>>),
     CNO(Solution<f64, cno::State<f64>>),
     Chemogenetic(Solution<f64, chemogenetic::State<f64>>),
+    Oscillation(Solution<f64, oscillation::State<f64>>),
 }
 
 /// Trait for accessing the species vectors from Solution types with different State types.
@@ -105,6 +108,63 @@ pub trait SolutionAccess {
     fn brain_clz(&self) -> Result<Vec<f64>, SpeciesAccessError>;
 }
 
+/// Macro to implement SolutionAccess for models that only have brain_rma and plasma_rma.
+/// Used by constitutive and oscillation models.
+#[macro_export]
+macro_rules! impl_solution_access_basic_rma {
+    ($solution_type:ty, $state_type:ty) => {
+        impl crate::solve::SolutionAccess for $solution_type {
+            fn brain_rma(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Ok(self
+                    .y
+                    .iter()
+                    .map(|state| state.brain_rma)
+                    .collect::<Vec<f64>>())
+            }
+
+            fn plasma_rma(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Ok(self
+                    .y
+                    .iter()
+                    .map(|state| state.plasma_rma)
+                    .collect::<Vec<f64>>())
+            }
+
+            fn tta(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Err(crate::solve::SpeciesAccessError::NoTta)
+            }
+            fn plasma_dox(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Err(crate::solve::SpeciesAccessError::NoPlasmaDox)
+            }
+            fn brain_dox(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Err(crate::solve::SpeciesAccessError::NoBrainDox)
+            }
+            fn dreadd(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Err(crate::solve::SpeciesAccessError::NoDreadd)
+            }
+            fn peritoneal_cno(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Err(crate::solve::SpeciesAccessError::NoPeritonealCno)
+            }
+            fn plasma_cno(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Err(crate::solve::SpeciesAccessError::NoPlasmaCno)
+            }
+            fn brain_cno(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Err(crate::solve::SpeciesAccessError::NoBrainCno)
+            }
+            fn plasma_clz(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Err(crate::solve::SpeciesAccessError::NoPlasmaClz)
+            }
+            fn brain_clz(&self) -> Result<Vec<f64>, crate::solve::SpeciesAccessError> {
+                Err(crate::solve::SpeciesAccessError::NoBrainClz)
+            }
+        }
+    };
+}
+
+pub trait ApplyNoise {
+    fn apply_noise(&mut self, strength: f64);
+}
+
 // A macro to access fields that exist on ALL InnerSolution variants with the same type.
 // For fields with different types (like the `y` field containing different State types),
 // use the SolutionAccess trait's `states()` method instead.
@@ -117,6 +177,7 @@ macro_rules! access_field {
             InnerSolution::TetOff(s) => &s.$field,
             InnerSolution::CNO(s) => &s.$field,
             InnerSolution::Chemogenetic(s) => &s.$field,
+            InnerSolution::Oscillation(s) => &s.$field,
         }
     };
 }
@@ -166,6 +227,7 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.plasma_rma().unwrap(),
+            InnerSolution::Oscillation(s) => s.plasma_rma().unwrap(),
         };
 
         Ok(PyArray1::from_vec(py, plasma_rma))
@@ -188,6 +250,7 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.brain_rma().unwrap(),
+            InnerSolution::Oscillation(s) => s.brain_rma().unwrap(),
         };
 
         Ok(PyArray1::from_vec(py, brain_rma))
@@ -214,6 +277,11 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.tta().unwrap(),
+            InnerSolution::Oscillation(_) => {
+                return Err(PyValueError::new_err(
+                    "tTA is not available for the oscillation model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, tta))
@@ -236,6 +304,11 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.plasma_dox().unwrap(),
+            InnerSolution::Oscillation(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma dox is not available for the oscillation model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, plasma_dox))
@@ -258,6 +331,11 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.brain_dox().unwrap(),
+            InnerSolution::Oscillation(_) => {
+                return Err(PyValueError::new_err(
+                    "brain dox is not available for the oscillation model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, brain_dox))
@@ -288,6 +366,11 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.dreadd().unwrap(),
+            InnerSolution::Oscillation(_) => {
+                return Err(PyValueError::new_err(
+                    "dreadd is not available for the oscillation model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, dreadd))
@@ -314,6 +397,11 @@ impl PySolution {
             }
             InnerSolution::CNO(s) => s.peritoneal_cno().unwrap(),
             InnerSolution::Chemogenetic(s) => s.peritoneal_cno().unwrap(),
+            InnerSolution::Oscillation(_) => {
+                return Err(PyValueError::new_err(
+                    "peritoneal CNO is not available for the oscillation model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, peritoneal_cno))
@@ -340,6 +428,11 @@ impl PySolution {
             }
             InnerSolution::CNO(s) => s.plasma_cno().unwrap(),
             InnerSolution::Chemogenetic(s) => s.plasma_cno().unwrap(),
+            InnerSolution::Oscillation(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma CNO is not available for the oscillation model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, plasma_cno))
@@ -366,6 +459,11 @@ impl PySolution {
             }
             InnerSolution::CNO(s) => s.brain_cno().unwrap(),
             InnerSolution::Chemogenetic(s) => s.brain_cno().unwrap(),
+            InnerSolution::Oscillation(_) => {
+                return Err(PyValueError::new_err(
+                    "brain CNO is not available for the oscillation model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, brain_cno))
@@ -392,6 +490,11 @@ impl PySolution {
             }
             InnerSolution::CNO(s) => s.plasma_clz().unwrap(),
             InnerSolution::Chemogenetic(s) => s.plasma_clz().unwrap(),
+            InnerSolution::Oscillation(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma CLZ is not available for the oscillation model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, plasma_clz))
@@ -418,6 +521,11 @@ impl PySolution {
             }
             InnerSolution::CNO(s) => s.brain_clz().unwrap(),
             InnerSolution::Chemogenetic(s) => s.brain_clz().unwrap(),
+            InnerSolution::Oscillation(_) => {
+                return Err(PyValueError::new_err(
+                    "brain CLZ is not available for the oscillation model",
+                ));
+            }
         };
 
         Ok(PyArray1::from_vec(py, brain_clz))
@@ -426,5 +534,20 @@ impl PySolution {
     /// Returns the elapsed time in seconds
     fn elapsed_time(&self) -> f64 {
         self.inner.elapsed()
+    }
+
+    /// Applies standard normal noise of a given scale to the plasma RMA array.
+    /// Only available for the oscillation model.
+    fn apply_noise(&mut self, scale: f64) -> PyResult<()> {
+        match &mut self.inner {
+            InnerSolution::Oscillation(s) => s.apply_noise(scale),
+            _ => {
+                return Err(PyValueError::new_err(
+                    "apply_noise is not available for this model",
+                ));
+            }
+        }
+
+        Ok(())
     }
 }

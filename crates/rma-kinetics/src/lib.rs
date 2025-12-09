@@ -38,7 +38,7 @@ pub mod models;
 pub mod pk;
 mod solve;
 
-pub use solve::Solve;
+pub use solve::{SolutionAccess, Solve};
 
 #[cfg(feature = "py")]
 use pyo3::prelude::*;

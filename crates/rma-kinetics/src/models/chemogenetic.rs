@@ -26,12 +26,13 @@
 //! ```
 
 use crate::{
-    Solve,
+    SolutionAccess, Solve,
     models::{
         cno::{CNOFields, CNOPKAccess, Dose, Model as CNOModel},
         dox::{DoxFields, Model as DoxModel},
     },
     pk::DoseApplyingSolout,
+    solve::SpeciesAccessError,
 };
 use derive_builder::Builder;
 use differential_equations::{
@@ -113,6 +114,92 @@ impl State<f64> {
             plasma_clz,
             brain_clz,
         }
+    }
+}
+
+impl SolutionAccess for Solution<f64, State<f64>> {
+    fn brain_rma(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.brain_rma)
+            .collect::<Vec<f64>>())
+    }
+
+    fn plasma_rma(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.plasma_rma)
+            .collect::<Vec<f64>>())
+    }
+
+    fn tta(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self.y.iter().map(|state| state.tta).collect::<Vec<f64>>())
+    }
+
+    fn plasma_dox(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.plasma_dox)
+            .collect::<Vec<f64>>())
+    }
+
+    fn brain_dox(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.brain_dox)
+            .collect::<Vec<f64>>())
+    }
+
+    fn dreadd(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.dreadd)
+            .collect::<Vec<f64>>())
+    }
+
+    fn peritoneal_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.peritoneal_cno)
+            .collect::<Vec<f64>>())
+    }
+
+    fn plasma_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.plasma_cno)
+            .collect::<Vec<f64>>())
+    }
+
+    fn brain_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.brain_cno)
+            .collect::<Vec<f64>>())
+    }
+
+    fn plasma_clz(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.plasma_clz)
+            .collect::<Vec<f64>>())
+    }
+
+    fn brain_clz(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.brain_clz)
+            .collect::<Vec<f64>>())
     }
 }
 
@@ -725,6 +812,9 @@ mod tests {
         let solution = solution.unwrap();
         assert!(matches!(solution.status, Status::Complete));
         assert!(solution.y.last().unwrap().plasma_rma > 0.);
+        assert!(solution.plasma_cno().is_ok());
+        assert!(solution.plasma_rma().is_ok());
+        assert!(solution.plasma_dox().is_ok());
 
         Ok(())
     }

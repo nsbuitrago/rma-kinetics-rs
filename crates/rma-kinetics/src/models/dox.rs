@@ -41,8 +41,12 @@
 //! ```
 //!
 
-use crate::pk::Error;
-use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Matrix};
+use crate::{SolutionAccess, pk::Error, solve::SpeciesAccessError};
+use differential_equations::{
+    derive::State as StateTrait,
+    ode::ODE,
+    prelude::{Matrix, Solution},
+};
 use rma_kinetics_derive::Solve;
 use std::ops::RangeInclusive;
 
@@ -163,6 +167,52 @@ impl Default for State<f64> {
     /// Default dox model state where plasma and brain dox concentration are set to 0.
     fn default() -> Self {
         State::zeros()
+    }
+}
+
+impl SolutionAccess for Solution<f64, State<f64>> {
+    fn brain_rma(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoBrainRMA)
+    }
+    fn plasma_rma(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaRMA)
+    }
+    fn tta(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoTta)
+    }
+    fn dreadd(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoDreadd)
+    }
+    fn peritoneal_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPeritonealCno)
+    }
+    fn plasma_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaCno)
+    }
+    fn brain_cno(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoBrainCno)
+    }
+    fn plasma_clz(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaClz)
+    }
+    fn brain_clz(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoBrainClz)
+    }
+
+    fn plasma_dox(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.plasma_dox)
+            .collect::<Vec<f64>>())
+    }
+
+    fn brain_dox(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Ok(self
+            .y
+            .iter()
+            .map(|state| state.brain_dox)
+            .collect::<Vec<f64>>())
     }
 }
 
@@ -566,6 +616,8 @@ mod tests {
         let unwrapped_solution = solution.unwrap();
         assert!(unwrapped_solution.y.last().unwrap().plasma_dox > 0.);
         assert!(unwrapped_solution.y.last().unwrap().brain_dox > 0.);
+        assert!(unwrapped_solution.plasma_dox().is_ok());
+        assert!(unwrapped_solution.plasma_rma().is_err());
 
         Ok(())
     }

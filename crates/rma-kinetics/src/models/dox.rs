@@ -59,6 +59,8 @@ use rma_kinetics_derive::PySolve;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use std::fmt;
+
 const DOX_MW: f64 = 444.4; // g/mol
 
 /// Defines the concentration and period of access of dox food or water.
@@ -167,6 +169,16 @@ impl Default for State<f64> {
     /// Default dox model state where plasma and brain dox concentration are set to 0.
     fn default() -> Self {
         State::zeros()
+    }
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for State<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "plasma_dox={:.3}, brain_dox={:.3}",
+            self.plasma_dox, self.brain_dox
+        )
     }
 }
 
@@ -293,6 +305,13 @@ impl PyState {
     fn set_brain_dox(&mut self, value: f64) -> PyResult<()> {
         self.inner.brain_dox = value;
         Ok(())
+    }
+}
+
+#[cfg(feature = "py")]
+impl std::fmt::Display for PyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 

@@ -40,6 +40,8 @@ use crate::solve::{InnerSolution, PySolution, PySolver};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use std::fmt;
+
 const CNO_MW: f64 = 342.8; // g/mol
 
 /// Defines a CNO dose given an amount in mg and administration time.
@@ -176,6 +178,16 @@ impl Default for State<f64> {
     /// Default CNO model state where all concentrations are set to 0.
     fn default() -> Self {
         Self::zeros()
+    }
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for State<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "peritoneal_cno={:.3}, plasma_cno={:.3}, brain_cno={:.3}, plasma_clz={:.3}, brain_clz={:.3}",
+            self.peritoneal_cno, self.plasma_cno, self.brain_cno, self.plasma_clz, self.brain_clz
+        )
     }
 }
 
@@ -366,6 +378,13 @@ impl PyState {
     fn set_brain_clz(&mut self, value: f64) -> PyResult<()> {
         self.inner.brain_clz = value;
         Ok(())
+    }
+}
+
+#[cfg(feature = "py")]
+impl std::fmt::Display for PyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 

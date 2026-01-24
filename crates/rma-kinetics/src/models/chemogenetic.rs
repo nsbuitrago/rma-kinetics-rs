@@ -51,6 +51,8 @@ use crate::solve::{InnerSolution, PySolution, PySolver};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use std::fmt;
+
 /// Chemogenetic model state.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(StateTrait, Builder)]
@@ -114,6 +116,26 @@ impl State<f64> {
             plasma_clz,
             brain_clz,
         }
+    }
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for State<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "brain_rma={:.3}, plasma_rma={:.3}, tta={:.3}, plasma_dox={:.3}, brain_dox={:.3}, dreadd={:.3}, peritoneal_cno={:.3}, plasma_cno={:.3}, brain_cno={:.3}, plasma_clz={:.3}, brain_clz={:.3}",
+            self.brain_rma,
+            self.plasma_rma,
+            self.tta,
+            self.plasma_dox,
+            self.brain_dox,
+            self.dreadd,
+            self.peritoneal_cno,
+            self.plasma_cno,
+            self.brain_cno,
+            self.plasma_clz,
+            self.brain_clz
+        )
     }
 }
 
@@ -387,6 +409,13 @@ impl PyState {
     fn set_brain_clz(&mut self, value: f64) -> PyResult<()> {
         self.inner.brain_clz = value;
         Ok(())
+    }
+}
+
+#[cfg(feature = "py")]
+impl std::fmt::Display for PyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 

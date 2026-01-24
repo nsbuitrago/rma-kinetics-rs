@@ -40,6 +40,8 @@ use rma_kinetics_derive::PySolve;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use std::fmt;
+
 /// Tet-Off model state.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(StateTrait)]
@@ -72,6 +74,16 @@ impl State<f64> {
             brain_dox,
             plasma_dox,
         }
+    }
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for State<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "brain_rma={:.3}, plasma_rma={:.3}, tta={:.3}, plasma_dox={:.3}, brain_dox={:.3}",
+            self.brain_rma, self.plasma_rma, self.tta, self.plasma_dox, self.brain_dox
+        )
     }
 }
 
@@ -270,6 +282,13 @@ impl PyState {
     fn set_plasma_dox(&mut self, value: f64) -> PyResult<()> {
         self.inner.plasma_dox = value;
         Ok(())
+    }
+}
+
+#[cfg(feature = "py")]
+impl std::fmt::Display for PyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 

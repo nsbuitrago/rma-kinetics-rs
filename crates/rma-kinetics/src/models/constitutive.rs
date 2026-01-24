@@ -55,6 +55,8 @@ use rma_kinetics_derive::PySolve;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use std::fmt;
+
 /// Constitutive model state.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(StateTrait)]
@@ -87,6 +89,16 @@ impl Default for State<f64> {
     /// are set to 0.
     fn default() -> Self {
         State::zeros()
+    }
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for State<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "brain_rma={:.3}, plasma_rma={:.3}",
+            self.brain_rma, self.plasma_rma
+        )
     }
 }
 
@@ -140,6 +152,13 @@ macro_rules! create_interface {
 
 #[cfg(feature = "py")]
 create_interface!(PyState, f64);
+
+#[cfg(feature = "py")]
+impl std::fmt::Display for PyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner)
+    }
+}
 
 /// Default constitutive RMA production rate.
 const DEFAULT_PROD: f64 = 0.2;

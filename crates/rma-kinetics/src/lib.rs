@@ -38,7 +38,7 @@ pub mod models;
 pub mod pk;
 mod solve;
 
-pub use solve::{ApplyNoise, SolutionAccess, Solve};
+pub use solve::{ApplyNoise, SolutionAccess, Solve, SpeciesAccessError};
 
 #[cfg(feature = "py")]
 use pyo3::prelude::*;

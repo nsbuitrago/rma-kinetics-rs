@@ -9,6 +9,8 @@ use differential_equations::{
     traits,
 };
 
+use std::fmt;
+
 #[cfg(feature = "py")]
 pub use crate::models::chemogenetic;
 #[cfg(feature = "py")]
@@ -36,6 +38,40 @@ pub enum SpeciesAccessError {
     NoPlasmaClz,
     NoBrainClz,
 }
+
+impl std::fmt::Display for SpeciesAccessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SpeciesAccessError::NoBrainRMA => write!(f, "Brain RMA is not available in this model"),
+            SpeciesAccessError::NoPlasmaRMA => {
+                write!(f, "Plasma RMA is not available in this model")
+            }
+            SpeciesAccessError::NoTta => write!(f, "tTA is not available in this model"),
+            SpeciesAccessError::NoPlasmaDox => {
+                write!(f, "Plasma doxycycline is not available in this model")
+            }
+            SpeciesAccessError::NoBrainDox => {
+                write!(f, "Brain doxycycline is not available in this model")
+            }
+            SpeciesAccessError::NoDreadd => write!(f, "DREADD is not available in this model"),
+            SpeciesAccessError::NoPeritonealCno => {
+                write!(f, "Peritoneal CNO is not available in this model")
+            }
+            SpeciesAccessError::NoPlasmaCno => {
+                write!(f, "Plasma CNO is not available in this model")
+            }
+            SpeciesAccessError::NoBrainCno => write!(f, "Brain CNO is not available in this model"),
+            SpeciesAccessError::NoPlasmaClz => {
+                write!(f, "Plasma clozapine is not available in this model")
+            }
+            SpeciesAccessError::NoBrainClz => {
+                write!(f, "Brain clozapine is not available in this model")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SpeciesAccessError {}
 
 /// Solve trait for kinetic models.
 pub trait Solve {

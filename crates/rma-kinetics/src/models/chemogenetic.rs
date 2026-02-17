@@ -48,6 +48,12 @@ use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};
 
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+use crate::solve::ToDataFrame;
+
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+use polars::{error::PolarsError, frame::DataFrame};
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -114,6 +120,26 @@ impl State<f64> {
             plasma_clz,
             brain_clz,
         }
+    }
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for State<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "brain_rma={:.3}, plasma_rma={:.3}, tta={:.3}, plasma_dox={:.3}, brain_dox={:.3}, dreadd={:.3}, peritoneal_cno={:.3}, plasma_cno={:.3}, brain_cno={:.3}, plasma_clz={:.3}, brain_clz={:.3}",
+            self.brain_rma,
+            self.plasma_rma,
+            self.tta,
+            self.plasma_dox,
+            self.brain_dox,
+            self.dreadd,
+            self.peritoneal_cno,
+            self.plasma_cno,
+            self.brain_cno,
+            self.plasma_clz,
+            self.brain_clz
+        )
     }
 }
 
@@ -244,6 +270,30 @@ impl SolutionAccess for Solution<f64, State<f64>> {
 
     fn max_brain_clz(&self) -> Result<(f64, f64), SpeciesAccessError> {
         Ok(crate::max_species!(self, brain_clz))
+    }
+}
+
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+impl ToDataFrame for Solution<f64, State<f64>> {
+    fn to_dataframe(self) -> Result<DataFrame, PolarsError> {
+        use crate::struct_to_dataframe;
+
+        struct_to_dataframe!(
+            self,
+            [
+                brain_rma,
+                plasma_rma,
+                tta,
+                plasma_dox,
+                brain_dox,
+                dreadd,
+                peritoneal_cno,
+                plasma_cno,
+                brain_cno,
+                plasma_clz,
+                brain_clz
+            ]
+        )
     }
 }
 
@@ -387,6 +437,13 @@ impl PyState {
     fn set_brain_clz(&mut self, value: f64) -> PyResult<()> {
         self.inner.brain_clz = value;
         Ok(())
+    }
+}
+
+#[cfg(feature = "py")]
+impl std::fmt::Display for PyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -867,6 +924,40 @@ mod tests {
         let model = Model::builder().leaky_rma_prod(0.2).build()?;
         let solution = model.solve(0., 48., 1., state, &mut solver);
         assert!(solution.is_ok());
+
+        Ok(())
+    }
+
+    #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+    #[test]
+    fn dataframe_conversion() -> Result<(), PolarsError> {
+        let model = Model::default();
+        let state = State::zeros();
+        let mut solver = DiagonallyImplicitRungeKutta::kvaerno423();
+        let solution = model.solve(0., 48., 1., state, &mut solver);
+
+        assert!(solution.is_ok());
+        let solution = solution.unwrap();
+
+        let dataframe = solution.to_dataframe()?;
+        assert_eq!(dataframe.shape(), (49, 12));
+        assert_eq!(
+            dataframe.get_column_names(),
+            &[
+                "time",
+                "brain_rma",
+                "plasma_rma",
+                "tta",
+                "plasma_dox",
+                "brain_dox",
+                "dreadd",
+                "peritoneal_cno",
+                "plasma_cno",
+                "brain_cno",
+                "plasma_clz",
+                "brain_clz"
+            ]
+        );
 
         Ok(())
     }

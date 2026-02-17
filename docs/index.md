@@ -9,7 +9,7 @@ for more ergonomic analysis with existing tools such as numpy or scipy. For the
 Rust library documentation, please see the [docs.rs page](https://docs.rs/rma-kinetics/latest/rma_kinetics/).
 
 If you're interested in a graphical interface for running the models, please see
-our [web](./app/web.md) and [desktop](./app/desktop.md) application docs.
+our [application docs.](./app/index.md)
 
 ## Installation
 

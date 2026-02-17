@@ -18,7 +18,7 @@ The core models include:
 - Chemogenetic: DREADD induced expression
 - Oscillating: proxy for monitoring rapidly changing gene expression
 
-Please see the [user guide](https://nsbuitrago.github.io/rma-kinetics-rs) to learn more.
+Please see the [user guide](./docs/index.md) to learn more.
 
 ## Installation
 

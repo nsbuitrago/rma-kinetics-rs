@@ -46,7 +46,6 @@ nav:
           - solution/index.md
   - Application Docs:
       - app/index.md
-      - app/web.md
       - app/desktop.md
 markdown_extensions:
   - admonition

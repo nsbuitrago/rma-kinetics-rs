@@ -37,6 +37,40 @@ pub enum SpeciesAccessError {
     NoBrainClz,
 }
 
+impl std::fmt::Display for SpeciesAccessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SpeciesAccessError::NoBrainRMA => write!(f, "Brain RMA is not available in this model"),
+            SpeciesAccessError::NoPlasmaRMA => {
+                write!(f, "Plasma RMA is not available in this model")
+            }
+            SpeciesAccessError::NoTta => write!(f, "tTA is not available in this model"),
+            SpeciesAccessError::NoPlasmaDox => {
+                write!(f, "Plasma doxycycline is not available in this model")
+            }
+            SpeciesAccessError::NoBrainDox => {
+                write!(f, "Brain doxycycline is not available in this model")
+            }
+            SpeciesAccessError::NoDreadd => write!(f, "DREADD is not available in this model"),
+            SpeciesAccessError::NoPeritonealCno => {
+                write!(f, "Peritoneal CNO is not available in this model")
+            }
+            SpeciesAccessError::NoPlasmaCno => {
+                write!(f, "Plasma CNO is not available in this model")
+            }
+            SpeciesAccessError::NoBrainCno => write!(f, "Brain CNO is not available in this model"),
+            SpeciesAccessError::NoPlasmaClz => {
+                write!(f, "Plasma clozapine is not available in this model")
+            }
+            SpeciesAccessError::NoBrainClz => {
+                write!(f, "Brain clozapine is not available in this model")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SpeciesAccessError {}
+
 /// Solve trait for kinetic models.
 pub trait Solve {
     type State: traits::State<f64>;
@@ -117,6 +151,40 @@ pub trait SolutionAccess {
     fn max_plasma_clz(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn brain_clz(&self) -> Result<Vec<f64>, SpeciesAccessError>;
     fn max_brain_clz(&self) -> Result<(f64, f64), SpeciesAccessError>;
+}
+
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+pub trait ToDataFrame {
+    fn to_dataframe(self) -> Result<polars::frame::DataFrame, polars::error::PolarsError>;
+}
+
+// Source - https://stackoverflow.com/a
+// Posted by SirVer, modified by community. See post 'Timeline' for change history
+// Retrieved 2026-01-27, License - CC BY-SA 4.0
+//
+// Additionally modified by NSBuitrago <mail@nsbuitrago.xyz> for appending `t` field
+// from `Solution` structs.
+
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+#[macro_export]
+macro_rules! struct_to_dataframe {
+    ($input:expr, [$($field:ident),+]) => {
+        {
+            let len = $input.y.len().to_owned();
+
+            // Extract the field values into separate vectors
+            $(let mut $field = Vec::with_capacity(len);)*
+
+            for e in $input.y.into_iter() {
+                $($field.push(e.$field);)*
+            }
+
+            ::polars::df! {
+                "time" => $input.t,
+                $(stringify!($field) => $field,)*
+            }
+        }
+    };
 }
 
 #[macro_export]

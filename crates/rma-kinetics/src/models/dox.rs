@@ -56,6 +56,12 @@ use pyo3::{PyResult, exceptions::PyValueError, pyclass, pyfunction, pymethods};
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;
 
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+use crate::solve::ToDataFrame;
+
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+use polars::{error::PolarsError, frame::DataFrame};
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -170,6 +176,16 @@ impl Default for State<f64> {
     }
 }
 
+impl<T: std::fmt::Display> std::fmt::Display for State<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "plasma_dox={:.3}, brain_dox={:.3}",
+            self.plasma_dox, self.brain_dox
+        )
+    }
+}
+
 impl SolutionAccess for Solution<f64, State<f64>> {
     fn brain_rma(&self) -> Result<Vec<f64>, SpeciesAccessError> {
         Err(SpeciesAccessError::NoBrainRMA)
@@ -251,6 +267,15 @@ impl SolutionAccess for Solution<f64, State<f64>> {
     }
 }
 
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+impl ToDataFrame for Solution<f64, State<f64>> {
+    fn to_dataframe(self) -> Result<DataFrame, PolarsError> {
+        use crate::struct_to_dataframe;
+
+        struct_to_dataframe!(self, [plasma_dox, brain_dox])
+    }
+}
+
 #[cfg(feature = "py")]
 #[pyclass(name = "State")]
 #[derive(Clone)]
@@ -293,6 +318,13 @@ impl PyState {
     fn set_brain_dox(&mut self, value: f64) -> PyResult<()> {
         self.inner.brain_dox = value;
         Ok(())
+    }
+}
+
+#[cfg(feature = "py")]
+impl std::fmt::Display for PyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -655,6 +687,30 @@ mod tests {
         assert!(unwrapped_solution.plasma_rma().is_err());
         assert!(unwrapped_solution.max_plasma_dox().is_ok());
         assert!(unwrapped_solution.max_plasma_rma().is_err());
+
+        Ok(())
+    }
+
+    #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+    #[test]
+    fn dataframe_conversion() -> Result<(), PolarsError> {
+        let mut solver = ExplicitRungeKutta::dopri5();
+        let init_state = State::zeros();
+        let custom_model = Model::builder()
+            .schedule(vec![AccessPeriod::new(40., 0.0..=24.)])
+            .build()
+            .unwrap();
+
+        let solution = custom_model.solve(0., 24., 1., init_state, &mut solver);
+        assert!(solution.is_ok());
+        let unwrapped_solution = solution.unwrap();
+
+        let dataframe = unwrapped_solution.to_dataframe()?;
+        assert_eq!(dataframe.shape(), (25, 3));
+        assert_eq!(
+            dataframe.get_column_names(),
+            &["time", "plasma_dox", "brain_dox"]
+        );
 
         Ok(())
     }

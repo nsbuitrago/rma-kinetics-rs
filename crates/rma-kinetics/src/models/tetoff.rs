@@ -37,6 +37,12 @@ use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;
 
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+use crate::solve::ToDataFrame;
+
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+use polars::{error::PolarsError, frame::DataFrame};
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -72,6 +78,16 @@ impl State<f64> {
             brain_dox,
             plasma_dox,
         }
+    }
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for State<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "brain_rma={:.3}, plasma_rma={:.3}, tta={:.3}, plasma_dox={:.3}, brain_dox={:.3}",
+            self.brain_rma, self.plasma_rma, self.tta, self.plasma_dox, self.brain_dox
+        )
     }
 }
 
@@ -199,6 +215,15 @@ impl SolutionAccess for Solution<f64, State<f64>> {
     }
 }
 
+#[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+impl ToDataFrame for Solution<f64, State<f64>> {
+    fn to_dataframe(self) -> Result<DataFrame, PolarsError> {
+        use crate::struct_to_dataframe;
+
+        struct_to_dataframe!(self, [brain_rma, plasma_rma, tta, brain_dox, plasma_dox])
+    }
+}
+
 #[cfg(feature = "py")]
 #[pyclass(name = "State")]
 #[derive(Clone)]
@@ -270,6 +295,13 @@ impl PyState {
     fn set_plasma_dox(&mut self, value: f64) -> PyResult<()> {
         self.inner.plasma_dox = value;
         Ok(())
+    }
+}
+
+#[cfg(feature = "py")]
+impl std::fmt::Display for PyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -486,6 +518,34 @@ mod tests {
         assert!(unwrapped_solution.max_tta().is_ok());
         assert!(unwrapped_solution.max_plasma_dox().is_ok());
         assert!(unwrapped_solution.max_dreadd().is_err());
+
+        Ok(())
+    }
+
+    #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
+    #[test]
+    fn dataframe_conversion() -> Result<(), PolarsError> {
+        let default_model = Model::default();
+        let mut solver = ExplicitRungeKutta::dopri5();
+        let init_state = State::zeros();
+
+        let solution = default_model.solve(0., 24., 1., init_state, &mut solver);
+        assert!(solution.is_ok());
+
+        let unwrapped_solution = solution.unwrap();
+        let dataframe = unwrapped_solution.to_dataframe()?;
+        assert_eq!(dataframe.shape(), (25, 6));
+        assert_eq!(
+            dataframe.get_column_names(),
+            &[
+                "time",
+                "brain_rma",
+                "plasma_rma",
+                "tta",
+                "brain_dox",
+                "plasma_dox"
+            ]
+        );
 
         Ok(())
     }

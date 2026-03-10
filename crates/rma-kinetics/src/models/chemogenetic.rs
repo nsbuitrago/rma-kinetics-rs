@@ -26,24 +26,24 @@
 //! ```
 
 use crate::{
-    SolutionAccess, Solve,
     models::{
         cno::{CNOFields, CNOPKAccess, Dose, Model as CNOModel},
         dox::{DoxFields, Model as DoxModel},
     },
     pk::DoseApplyingSolout,
     solve::SpeciesAccessError,
+    SolutionAccess, Solve,
 };
 use derive_builder::Builder;
 use differential_equations::{
     derive::State as StateTrait,
     error::Error,
-    ode::{ODE, ODEProblem, OrdinaryNumericalMethod},
+    ode::{ODEProblem, OrdinaryNumericalMethod, ODE},
     prelude::{Interpolation, Solution},
 };
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
 
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};
@@ -94,6 +94,7 @@ impl State<f64> {
     }
 
     /// Create a new chemogenetic model state.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         brain_rma: f64,
         plasma_rma: f64,

@@ -22,17 +22,17 @@
 //! Ok::<(), cno::ModelBuilderError>(())
 //! ```
 
-use crate::{SolutionAccess, Solve, pk::DoseApplyingSolout, solve::SpeciesAccessError};
+use crate::{pk::DoseApplyingSolout, solve::SpeciesAccessError, SolutionAccess, Solve};
 use derive_builder::Builder;
 use differential_equations::{
     derive::State as StateTrait,
     error::Error,
-    ode::{ODE, ODEProblem, OrdinaryNumericalMethod},
+    ode::{ODEProblem, OrdinaryNumericalMethod, ODE},
     prelude::{Interpolation, Solution},
 };
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, exceptions::PyValueError, pyclass, pyfunction, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pyfunction, pymethods, PyResult};
 
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};

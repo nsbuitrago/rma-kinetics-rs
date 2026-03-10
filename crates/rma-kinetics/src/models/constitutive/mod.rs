@@ -15,8 +15,6 @@
 //! - Blood-brain barrier transport rate: 0.6 1/hr
 //! - Degradation rate: 0.007 1/hr
 //!
-//! ## Usage
-//!
 //! To solve the model over a given period of time, we use the solvers provided by
 //! the `differential_equations` dependency. From here, we can use the provided `Solve`
 //! trait and use the `solve` method on our model.
@@ -37,6 +35,7 @@
 //! ```
 
 pub mod stochastic;
+pub use stochastic::StochasticModel;
 
 use derive_builder::Builder;
 use differential_equations::{
@@ -55,7 +54,7 @@ use crate::solve::ToDataFrame;
 use polars::{error::PolarsError, frame::DataFrame};
 
 #[cfg(feature = "py")]
-use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
 
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;

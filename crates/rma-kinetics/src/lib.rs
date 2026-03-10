@@ -82,6 +82,8 @@ mod py_constitutive {
     use super::models::constitutive::Model;
     #[pymodule_export]
     use super::models::constitutive::PyState;
+    #[pymodule_export]
+    use super::models::constitutive::StochasticModel;
 }
 
 /// Oscillation model Python module
@@ -109,13 +111,13 @@ mod py_tetoff {
 #[pymodule(name = "dox")]
 mod py_dox {
     #[pymodule_export]
+    use super::models::dox::create_dox_schedule;
+    #[pymodule_export]
     use super::models::dox::AccessPeriod;
     #[pymodule_export]
     use super::models::dox::Model;
     #[pymodule_export]
     use super::models::dox::PyState;
-    #[pymodule_export]
-    use super::models::dox::create_dox_schedule;
 }
 
 // CNO model python module
@@ -123,13 +125,13 @@ mod py_dox {
 #[pymodule(name = "cno")]
 mod py_cno {
     #[pymodule_export]
+    use super::models::cno::create_cno_schedule;
+    #[pymodule_export]
     use super::models::cno::Dose;
     #[pymodule_export]
     use super::models::cno::Model;
     #[pymodule_export]
     use super::models::cno::PyState;
-    #[pymodule_export]
-    use super::models::cno::create_cno_schedule;
 }
 
 // Chemogenetic model python module

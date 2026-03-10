@@ -17,4 +17,4 @@ docs-dev:
     @uv run --group docs mkdocs serve --watch docs
 
 notebook name:
-    @uv run marimo edit notebooks/{{name}}.py
+    @uv run marimo edit notebooks/{{ name }}.py

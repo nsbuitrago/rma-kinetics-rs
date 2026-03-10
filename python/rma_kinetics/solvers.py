@@ -33,3 +33,10 @@ class Kvaerno3(Solver):
     """Kvaerno 3(2) method. L-stable, 3rd order. Uses 4 stages."""
 
     solver_type: str = field(default="kvaerno3", init=False, repr=False)
+
+
+@dataclass
+class RungeKutta4(Solver):
+    """Classical 4th order Runge-Kutta method."""
+
+    solver_type: str = field(default="rk4", init=False, repr=False)

@@ -70,6 +70,82 @@ pub fn solve_stochastic_derive(input: TokenStream) -> TokenStream {
 }
 
 #[cfg(feature = "py")]
+#[proc_macro_derive(StochasticPySolve, attributes(py_solve))]
+pub fn stochastic_py_solve_derive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+
+    let mut variant_name = None;
+    for attr in &input.attrs {
+        if attr.path().is_ident("py_solve") {
+            let list: Punctuated<Meta, Token![,]> =
+                attr.parse_args_with(Punctuated::parse_terminated).unwrap();
+            for meta in list {
+                if let Meta::NameValue(name_value) = meta {
+                    if name_value.path.is_ident("variant") {
+                        if let Expr::Lit(expr_lit) = name_value.value {
+                            if let Lit::Str(lit_str) = expr_lit.lit {
+                                variant_name = Some(Ident::new(&lit_str.value(), lit_str.span()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let variant_ident = match variant_name {
+        Some(name) => name,
+        None => {
+            return TokenStream::from(quote! {
+                compile_error!("Expected a `#[py_solve(variant = \"...\")]` attribute");
+            });
+        }
+    };
+
+    // Assume the state type is `State<f64>` and is defined in the same module.
+    let state_type = quote! { State<f64> };
+
+    let expanded = quote! {
+        impl crate::solve::PyStochasticSolve for #name {
+            type State = #state_type;
+
+            fn solve(
+                &mut self,
+                t0: f64,
+                tf: f64,
+                dt: f64,
+                init_state: Self::State,
+                solver: crate::solve::PySolver,
+            ) -> Result<crate::solve::PySolution, differential_equations::error::Error<f64, Self::State>>
+            {
+                if solver.dt0 == 0.0 {
+                    return Err(differential_equations::error::Error::BadInput {
+                        msg: "Stochastic solvers require a non-zero `dt0` fixed step size. \
+                              Set dt0 on your solver (e.g. Euler(dt0=1.0)).".to_string(),
+                    });
+                }
+
+                let mut problem = differential_equations::sde::SDEProblem::new(self, t0, tf, init_state);
+                let solution = match solver.solver_type.as_str() {
+                    "rk4" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::rk4(solver.dt0);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    },
+                    _ => panic!("Solver '{}' is not supported for stochastic models. Use 'rk4'.", solver.solver_type),
+                };
+
+                Ok(crate::solve::PySolution {
+                    inner: crate::solve::InnerSolution::#variant_ident(solution),
+                })
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[cfg(feature = "py")]
 #[proc_macro_derive(PySolve, attributes(py_solve))]
 pub fn py_solve_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

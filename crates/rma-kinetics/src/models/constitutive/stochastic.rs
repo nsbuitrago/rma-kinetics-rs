@@ -4,6 +4,12 @@ use rand::{SeedableRng, rngs::StdRng};
 use rand_distr::{Distribution as _, Normal};
 use rma_kinetics_derive::StochasticSolve;
 
+#[cfg(feature = "py")]
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+
+#[cfg(feature = "py")]
+use rma_kinetics_derive::StochasticPySolve;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -21,11 +27,14 @@ fn rng_from_seed(seed: u64) -> StdRng {
 }
 
 /// Stochastic constitutive RMA expression model.
+#[cfg_attr(feature = "py", pyclass(name = "StochasticModel"))]
+#[cfg_attr(feature = "py", derive(StochasticPySolve))]
+#[cfg_attr(feature = "py", py_solve(variant = "Constitutive"))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(from = "ModelSerde", into = "ModelSerde"))]
 #[derive(StochasticSolve, Builder, Clone)]
 #[builder(build_fn(private, name = "build_internal"), derive(Debug))]
-pub struct Model {
+pub struct StochasticModel {
     /// RMA production rate.
     #[builder(default = "DEFAULT_PROD")]
     pub prod: f64,
@@ -48,7 +57,7 @@ pub struct Model {
     pub(crate) rng: StdRng,
 }
 
-impl Model {
+impl StochasticModel {
     /// Create a new stochastic constitutive expression model.
     pub fn new(
         prod: f64,
@@ -70,8 +79,8 @@ impl Model {
     }
 
     /// Create a new ModelBuilder for constructing a model instance.
-    pub fn builder() -> ModelBuilder {
-        ModelBuilder::default()
+    pub fn builder() -> StochasticModelBuilder {
+        StochasticModelBuilder::default()
     }
 
     /// Set a new random seed and reinitialize the internal RNG.
@@ -81,14 +90,56 @@ impl Model {
     }
 }
 
-impl Default for Model {
+impl Default for StochasticModel {
     fn default() -> Self {
-        ModelBuilder::default().build().unwrap()
+        StochasticModelBuilder::default().build().unwrap()
     }
 }
 
-impl ModelBuilder {
-    pub fn build(&self) -> Result<Model, ModelBuilderError> {
+#[cfg(feature = "py")]
+#[pymethods]
+impl StochasticModel {
+    /// Create a new stochastic constitutive expression model.
+    #[new]
+    #[pyo3(signature = (
+        prod=DEFAULT_PROD,
+        bbb_transport=DEFAULT_BBB_TRANSPORT,
+        deg=DEFAULT_DEG,
+        prod_noise=DEFAULT_PROD_STDV,
+        transport_noise=DEFAULT_TRANSPORT_STDV,
+        seed=DEFAULT_SEED,
+    ))]
+    pub fn create(
+        prod: f64,
+        bbb_transport: f64,
+        deg: f64,
+        prod_noise: f64,
+        transport_noise: f64,
+        seed: u64,
+    ) -> Self {
+        Self::new(prod, bbb_transport, deg, prod_noise, transport_noise, seed)
+    }
+
+    #[pyo3(name = "solve")]
+    fn py_solve(
+        &mut self,
+        t0: f64,
+        tf: f64,
+        dt: f64,
+        init_state: super::PyState,
+        solver: crate::solve::PySolver,
+    ) -> PyResult<crate::solve::PySolution> {
+        let result =
+            crate::solve::PyStochasticSolve::solve(self, t0, tf, dt, init_state.inner, solver);
+        match result {
+            Ok(solution) => Ok(solution),
+            Err(e) => Err(PyValueError::new_err(format!("Failed to solve: {:?}", e))),
+        }
+    }
+}
+
+impl StochasticModelBuilder {
+    pub fn build(&self) -> Result<StochasticModel, StochasticModelBuilderError> {
         let mut model = self.build_internal()?;
         model.rng = rng_from_seed(model.seed);
         Ok(model)
@@ -107,9 +158,9 @@ struct ModelSerde {
 }
 
 #[cfg(feature = "serde")]
-impl From<ModelSerde> for Model {
+impl From<ModelSerde> for StochasticModel {
     fn from(value: ModelSerde) -> Self {
-        Model::new(
+        StochasticModel::new(
             value.prod,
             value.bbb_transport,
             value.deg,
@@ -121,8 +172,8 @@ impl From<ModelSerde> for Model {
 }
 
 #[cfg(feature = "serde")]
-impl From<Model> for ModelSerde {
-    fn from(value: Model) -> Self {
+impl From<StochasticModel> for ModelSerde {
+    fn from(value: StochasticModel) -> Self {
         Self {
             prod: value.prod,
             bbb_transport: value.bbb_transport,
@@ -134,7 +185,7 @@ impl From<Model> for ModelSerde {
     }
 }
 
-impl SDE<f64, State<f64>> for Model {
+impl SDE<f64, State<f64>> for StochasticModel {
     /// Deterministic drift term for constitutive RMA expression.
     fn drift(&self, _t: f64, y: &State<f64>, dydt: &mut State<f64>) {
         let brain_efflux = self.bbb_transport * y.brain_rma;
@@ -168,7 +219,7 @@ mod tests {
 
     #[test]
     fn default_simulation() {
-        let mut model = Model::default();
+        let mut model = StochasticModel::default();
         let mut solver = ExplicitRungeKutta::rk4(DT);
         let solution = model.solve(T0, TF, DT, State::zeros(), &mut solver);
 
@@ -193,8 +244,8 @@ mod tests {
 
     #[test]
     fn deterministic_seed_reproducibility() {
-        let mut model_a = Model::default();
-        let mut model_b = Model::default();
+        let mut model_a = StochasticModel::default();
+        let mut model_b = StochasticModel::default();
         let mut solver_a = ExplicitRungeKutta::rk4(DT);
         let mut solver_b = ExplicitRungeKutta::rk4(DT);
 
@@ -215,8 +266,8 @@ mod tests {
 
     #[test]
     fn different_seed_produces_different_trajectory() {
-        let mut model_a = Model::default();
-        let mut model_b = Model::builder().seed(99).build().unwrap();
+        let mut model_a = StochasticModel::default();
+        let mut model_b = StochasticModel::builder().seed(99).build().unwrap();
         let mut solver_a = ExplicitRungeKutta::rk4(DT);
         let mut solver_b = ExplicitRungeKutta::rk4(DT);
 
@@ -235,7 +286,11 @@ mod tests {
 
     #[test]
     fn builder_pattern() {
-        let result = Model::builder().prod(0.3).prod_noise(0.1).seed(123).build();
+        let result = StochasticModel::builder()
+            .prod(0.3)
+            .prod_noise(0.1)
+            .seed(123)
+            .build();
 
         assert!(result.is_ok());
         let mut model = result.unwrap();

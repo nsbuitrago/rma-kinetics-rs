@@ -1,5 +1,5 @@
 #[cfg(feature = "py")]
-use pyo3::{Bound, FromPyObject, PyResult, Python, exceptions::PyValueError, pyclass, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pymethods, Bound, FromPyObject, PyResult, Python};
 
 #[cfg(feature = "py")]
 use numpy::PyArray1;
@@ -112,6 +112,20 @@ pub trait PySolve {
 
     fn solve(
         &self,
+        t0: f64,
+        tf: f64,
+        dt: f64,
+        init_state: Self::State,
+        solver: PySolver,
+    ) -> Result<PySolution, Error<f64, Self::State>>;
+}
+
+#[cfg(feature = "py")]
+pub trait PyStochasticSolve {
+    type State: traits::State<f64>;
+
+    fn solve(
+        &mut self,
         t0: f64,
         tf: f64,
         dt: f64,

@@ -38,7 +38,7 @@ pub mod models;
 pub mod pk;
 mod solve;
 
-pub use solve::{ApplyNoise, SolutionAccess, Solve, SpeciesAccessError};
+pub use solve::{ApplyNoise, SolutionAccess, Solve, SpeciesAccessError, StochasticSolve};
 
 #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
 pub use solve::ToDataFrame;

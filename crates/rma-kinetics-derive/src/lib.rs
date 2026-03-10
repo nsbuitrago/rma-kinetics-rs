@@ -37,6 +37,38 @@ pub fn solve_derive(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
+#[proc_macro_derive(StochasticSolve)]
+pub fn solve_stochastic_derive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = input.ident;
+
+    // Assume the state type is `State<f64>` and is defined in the same module.
+    let state_type = quote! { State<f64> };
+
+    let expanded = quote! {
+        impl crate::solve::StochasticSolve for #name {
+            type State = #state_type;
+
+            fn solve<S>(
+                &mut self,
+                t0: f64,
+                tf: f64,
+                dt: f64,
+                init_state: Self::State,
+                solver: &mut S,
+            ) -> Result<differential_equations::prelude::Solution<f64, Self::State>, differential_equations::error::Error<f64, Self::State>>
+            where
+                S: differential_equations::sde::StochasticNumericalMethod<f64, Self::State> + differential_equations::interpolate::Interpolation<f64, Self::State>
+            {
+                let mut problem = differential_equations::sde::SDEProblem::new(self, t0, tf, init_state);
+                problem.even(dt).solve(solver)
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
 #[cfg(feature = "py")]
 #[proc_macro_derive(PySolve, attributes(py_solve))]
 pub fn py_solve_derive(input: TokenStream) -> TokenStream {

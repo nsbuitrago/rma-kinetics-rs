@@ -1,8 +1,9 @@
 use derive_builder::Builder;
 use differential_equations::sde::SDE;
 use rand::{SeedableRng, rngs::StdRng};
-
 use rand_distr::{Distribution as _, Normal};
+use rma_kinetics_derive::StochasticSolve;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +23,7 @@ fn rng_from_seed(seed: u64) -> StdRng {
 /// Stochastic constitutive RMA expression model.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(from = "ModelSerde", into = "ModelSerde"))]
-#[derive(Builder, Clone)]
+#[derive(StochasticSolve, Builder, Clone)]
 #[builder(build_fn(private, name = "build_internal"), derive(Debug))]
 pub struct Model {
     /// RMA production rate.
@@ -152,5 +153,96 @@ impl SDE<f64, State<f64>> for Model {
         let normal = Normal::new(0.0, dt.sqrt()).unwrap();
         dw.brain_rma = normal.sample(&mut self.rng);
         dw.plasma_rma = normal.sample(&mut self.rng);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{SolutionAccess, StochasticSolve};
+    use differential_equations::methods::ExplicitRungeKutta;
+
+    const T0: f64 = 0.;
+    const TF: f64 = 504.;
+    const DT: f64 = 1.;
+
+    #[test]
+    fn default_simulation() {
+        let mut model = Model::default();
+        let mut solver = ExplicitRungeKutta::rk4(DT);
+        let solution = model.solve(T0, TF, DT, State::zeros(), &mut solver);
+
+        assert!(solution.is_ok());
+        let solution = solution.unwrap();
+
+        assert!(solution.plasma_rma().is_ok());
+        assert!(solution.plasma_dox().is_err());
+        assert!(solution.max_plasma_rma().is_ok());
+        assert!(solution.max_tta().is_err());
+
+        // Should have time points from 0 to 504 with dt=1
+        assert!(!solution.t.is_empty());
+        assert!(!solution.y.is_empty());
+        assert_eq!(solution.t.len(), solution.y.len());
+
+        // First time point should be t0
+        assert!((solution.t[0] - T0).abs() < 1e-10);
+        // Last time point should be tf
+        assert!((solution.t[solution.t.len() - 1] - TF).abs() < 1e-10);
+    }
+
+    #[test]
+    fn deterministic_seed_reproducibility() {
+        let mut model_a = Model::default();
+        let mut model_b = Model::default();
+        let mut solver_a = ExplicitRungeKutta::rk4(DT);
+        let mut solver_b = ExplicitRungeKutta::rk4(DT);
+
+        let solution_a = model_a
+            .solve(T0, TF, DT, State::zeros(), &mut solver_a)
+            .unwrap();
+
+        let solution_b = model_b
+            .solve(T0, TF, DT, State::zeros(), &mut solver_b)
+            .unwrap();
+
+        // Same seed should produce identical trajectories
+        for (a, b) in solution_a.y.iter().zip(solution_b.y.iter()) {
+            assert_eq!(a.brain_rma, b.brain_rma);
+            assert_eq!(a.plasma_rma, b.plasma_rma);
+        }
+    }
+
+    #[test]
+    fn different_seed_produces_different_trajectory() {
+        let mut model_a = Model::default();
+        let mut model_b = Model::builder().seed(99).build().unwrap();
+        let mut solver_a = ExplicitRungeKutta::rk4(DT);
+        let mut solver_b = ExplicitRungeKutta::rk4(DT);
+
+        let solution_a = model_a
+            .solve(T0, TF, DT, State::zeros(), &mut solver_a)
+            .unwrap();
+
+        let solution_b = model_b
+            .solve(T0, TF, DT, State::zeros(), &mut solver_b)
+            .unwrap();
+
+        // Different seeds should produce different trajectories (check a late time point)
+        let last = solution_a.y.len() - 1;
+        assert_ne!(solution_a.y[last].plasma_rma, solution_b.y[last].plasma_rma);
+    }
+
+    #[test]
+    fn builder_pattern() {
+        let result = Model::builder().prod(0.3).prod_noise(0.1).seed(123).build();
+
+        assert!(result.is_ok());
+        let mut model = result.unwrap();
+
+        let mut solver = ExplicitRungeKutta::rk4(DT);
+        let solution = model.solve(T0, TF, DT, State::zeros(), &mut solver);
+
+        assert!(solution.is_ok());
     }
 }

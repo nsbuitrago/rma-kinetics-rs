@@ -5,8 +5,8 @@ use pyo3::{Bound, FromPyObject, PyResult, Python, exceptions::PyValueError, pycl
 use numpy::PyArray1;
 
 use differential_equations::{
-    error::Error, interpolate::Interpolation, ode::OrdinaryNumericalMethod, solution::Solution,
-    traits,
+    error::Error, interpolate::Interpolation, ode::OrdinaryNumericalMethod,
+    sde::StochasticNumericalMethod, solution::Solution, traits,
 };
 
 #[cfg(feature = "py")]
@@ -71,7 +71,7 @@ impl std::fmt::Display for SpeciesAccessError {
 
 impl std::error::Error for SpeciesAccessError {}
 
-/// Solve trait for kinetic models.
+/// Solve trait for kinetic models using ODE solvers.
 pub trait Solve {
     type State: traits::State<f64>;
 
@@ -85,6 +85,25 @@ pub trait Solve {
     ) -> Result<Solution<f64, Self::State>, Error<f64, Self::State>>
     where
         S: OrdinaryNumericalMethod<f64, Self::State> + Interpolation<f64, Self::State>;
+}
+
+/// Solve trait for stochastic kinetic models using SDE solvers.
+///
+/// Takes `&mut self` because SDE models typically contain internal state
+/// (e.g. a random number generator) that is mutated during solving.
+pub trait StochasticSolve {
+    type State: traits::State<f64>;
+
+    fn solve<S>(
+        &mut self,
+        t0: f64,
+        tf: f64,
+        dt: f64,
+        init_state: Self::State,
+        solver: &mut S,
+    ) -> Result<Solution<f64, Self::State>, Error<f64, Self::State>>
+    where
+        S: StochasticNumericalMethod<f64, Self::State> + Interpolation<f64, Self::State>;
 }
 
 #[cfg(feature = "py")]

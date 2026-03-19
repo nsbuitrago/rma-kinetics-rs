@@ -64,6 +64,7 @@
               uv
               maturin
               just
+	      git
             ];
 
             env = {

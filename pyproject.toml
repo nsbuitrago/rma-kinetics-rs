@@ -16,7 +16,11 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
+    "arviz>=0.23.4",
     "numpy>=2.2.6",
+    "pymc>=5.25.1",
+    "pytensor>=2.31.7",
+    "ruff>=0.15.7",
 ]
 [project.optional-dependencies]
 tests = [

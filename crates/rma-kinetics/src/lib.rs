@@ -84,6 +84,22 @@ mod py_constitutive {
     use super::models::constitutive::PyState;
     #[pymodule_export]
     use super::models::constitutive::StochasticModel;
+    #[pymodule_export]
+    use super::py_constitutive_erasable;
+}
+
+/// Constitutive erasable model Python module
+#[cfg(feature = "py")]
+#[pymodule(name = "erasable")]
+mod py_constitutive_erasable {
+    #[pymodule_export]
+    use super::models::constitutive::erasable::create_tev_schedule;
+    #[pymodule_export]
+    use super::models::constitutive::erasable::Dose;
+    #[pymodule_export]
+    use super::models::constitutive::erasable::Model;
+    #[pymodule_export]
+    use super::models::constitutive::erasable::PyState;
 }
 
 /// Oscillation model Python module

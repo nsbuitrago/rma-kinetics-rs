@@ -1,9 +1,8 @@
 //! Pharmacokinetic model utilities.
 //!
-//! - DoseApplyingSolout: a custom solout implementation for `differential_equations` to apply drug doses and handle evenly-spaced output points.
+//! - DoseApplyingSolout: a custom solout implementation for `differential_equations` to apply scheduled doses and handle evenly-spaced output points.
 //! - Error: an error type for pharmacokinetic model errors.
 
-use crate::models::cno::{CNOFields, Dose};
 use differential_equations::{
     prelude::{ControlFlag, Interpolation, Solution},
     solout::Solout,
@@ -16,6 +15,8 @@ use thiserror::Error as ErrorTrait;
 pub enum Error {
     #[error("Bioavailability must be between 0 and 1")]
     InvalidBioavailability(f64),
+    #[error("Dose times must be unique; found duplicate times at {0} and {1}")]
+    DuplicateDoseTimes(f64, f64),
 }
 
 /// Check if two f64 values are close.
@@ -26,10 +27,49 @@ macro_rules! is_close {
     };
 }
 
-/// Custom solout for applying CNO doses and evenly-spaced output points.
-/// Generic over state types that implement CNOFields.
-pub struct DoseApplyingSolout<S: CNOFields + StateTrait<f64> + Clone> {
-    doses: Vec<Dose>,
+/// Trait for dose schedules used by [`DoseApplyingSolout`].
+pub trait ScheduledDose {
+    fn time(&self) -> f64;
+    fn amount(&self) -> f64;
+}
+
+/// Validate that scheduled doses do not contain duplicate administration times.
+/// Times are considered duplicates if they differ by less than `1e-10`.
+pub fn validate_unique_dose_times<D: ScheduledDose>(doses: &[D]) -> Result<(), Error> {
+    for (i, dose_i) in doses.iter().enumerate() {
+        let time_i = dose_i.time();
+
+        for dose_j in doses.iter().skip(i + 1) {
+            let time_j = dose_j.time();
+
+            if is_close!(time_i, time_j) {
+                return Err(Error::DuplicateDoseTimes(time_i, time_j));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Trait for state types that can receive bolus doses in a target compartment.
+pub trait DoseTarget {
+    fn dose_target_mut(&mut self) -> &mut f64;
+}
+
+#[macro_export]
+macro_rules! impl_dose_target_field {
+    ($state_type:ty, $field:ident) => {
+        impl $crate::pk::DoseTarget for $state_type {
+            fn dose_target_mut(&mut self) -> &mut f64 {
+                &mut self.$field
+            }
+        }
+    };
+}
+
+/// Custom solout for applying scheduled doses and evenly-spaced output points.
+pub struct DoseApplyingSolout<S: DoseTarget + StateTrait<f64> + Clone, D: ScheduledDose + Clone> {
+    doses: Vec<D>,
     t0: f64,
     tf: f64,
     dt: f64,
@@ -39,8 +79,8 @@ pub struct DoseApplyingSolout<S: CNOFields + StateTrait<f64> + Clone> {
     _phantom: std::marker::PhantomData<S>,
 }
 
-impl<S: CNOFields + StateTrait<f64> + Clone> DoseApplyingSolout<S> {
-    pub fn new(doses: Vec<Dose>, t0: f64, tf: f64, dt: f64) -> Self {
+impl<S: DoseTarget + StateTrait<f64> + Clone, D: ScheduledDose + Clone> DoseApplyingSolout<S, D> {
+    pub fn new(doses: Vec<D>, t0: f64, tf: f64, dt: f64) -> Self {
         let direction = (tf - t0).signum();
         Self {
             doses,
@@ -66,27 +106,29 @@ impl<S: CNOFields + StateTrait<f64> + Clone> DoseApplyingSolout<S> {
         }
 
         let dose = &self.doses[self.next_dose_index];
+        let dose_time = dose.time();
 
-        if dose.time > t_prev && dose.time <= t_curr {
-            let mut y_dose = if is_close!(dose.time, t_curr) {
+        if dose_time > t_prev && dose_time <= t_curr {
+            let mut y_dose = if is_close!(dose_time, t_curr) {
                 *y_curr
             } else {
                 // this is safe to unwrap since we checked that dose.time is in
                 // the range [t_prev, t_curr], so we can never get a OutofBounds error.
-                interpolator.interpolate(dose.time).unwrap()
+                interpolator.interpolate(dose_time).unwrap()
             };
 
-            // apply the dose to the peritoneal compartment
-            *y_dose.peritoneal_cno_mut() += dose.nmol;
+            *y_dose.dose_target_mut() += dose.amount();
             self.next_dose_index += 1;
-            Some((dose.time, y_dose))
+            Some((dose_time, y_dose))
         } else {
             None
         }
     }
 }
 
-impl<S: CNOFields + Clone + StateTrait<f64>> Solout<f64, S> for DoseApplyingSolout<S> {
+impl<S: DoseTarget + Clone + StateTrait<f64>, D: ScheduledDose + Clone> Solout<f64, S>
+    for DoseApplyingSolout<S, D>
+{
     fn solout<I>(
         &mut self,
         t_curr: f64,

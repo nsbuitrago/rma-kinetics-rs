@@ -272,6 +272,14 @@ impl SolutionAccess for Solution<f64, State<f64>> {
     fn max_brain_clz(&self) -> Result<(f64, f64), SpeciesAccessError> {
         Ok(crate::max_species!(self, brain_clz))
     }
+
+    fn plasma_tev(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
+    }
+
+    fn max_plasma_tev(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
+    }
 }
 
 #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
@@ -496,6 +504,8 @@ impl CNOFields for State<f64> {
     }
 }
 
+crate::impl_dose_target_field!(State<f64>, peritoneal_cno);
+
 const DEFAULT_RMA_PROD: f64 = 0.428;
 const DEFAULT_LEAKY_RMA_PROD: f64 = 7.01e-3;
 const DEFAULT_RMA_BBB_TRANSPORT: f64 = 0.727;
@@ -636,7 +646,7 @@ impl Solve for Model {
             .count();
         start_dose_idx += n_applied_doses;
 
-        let mut dosing_solout = DoseApplyingSolout::<State<f64>>::new(
+        let mut dosing_solout = DoseApplyingSolout::<State<f64>, Dose>::new(
             self.get_doses()[start_dose_idx..].to_vec(),
             t0,
             tf,

@@ -22,17 +22,21 @@
 //! Ok::<(), cno::ModelBuilderError>(())
 //! ```
 
-use crate::{pk::DoseApplyingSolout, solve::SpeciesAccessError, SolutionAccess, Solve};
+use crate::{
+    SolutionAccess, Solve,
+    pk::{DoseApplyingSolout, ScheduledDose, validate_unique_dose_times},
+    solve::SpeciesAccessError,
+};
 use derive_builder::Builder;
 use differential_equations::{
     derive::State as StateTrait,
     error::Error,
-    ode::{ODEProblem, OrdinaryNumericalMethod, ODE},
+    ode::{ODE, ODEProblem, OrdinaryNumericalMethod},
     prelude::{Interpolation, Solution},
 };
 
 #[cfg(feature = "py")]
-use pyo3::{exceptions::PyValueError, pyclass, pyfunction, pymethods, PyResult};
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pyfunction, pymethods};
 
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};
@@ -64,6 +68,16 @@ impl Dose {
     pub fn new(mg: f64, time: f64) -> Self {
         let nmol = mg / CNO_MW * 1e6;
         Self { mg, nmol, time }
+    }
+}
+
+impl ScheduledDose for Dose {
+    fn time(&self) -> f64 {
+        self.time
+    }
+
+    fn amount(&self) -> f64 {
+        self.nmol
     }
 }
 
@@ -303,6 +317,14 @@ impl SolutionAccess for Solution<f64, State<f64>> {
     fn max_brain_clz(&self) -> Result<(f64, f64), SpeciesAccessError> {
         Ok(crate::max_species!(self, brain_clz))
     }
+
+    fn plasma_tev(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
+    }
+
+    fn max_plasma_tev(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
+    }
 }
 
 #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
@@ -453,6 +475,8 @@ impl CNOFields for State<f64> {
     }
 }
 
+crate::impl_dose_target_field!(State<f64>, peritoneal_cno);
+
 /// Trait for types that provide access to CNO PK doses.
 /// This enables models to access doses either directly (cno::Model)
 /// or indirectly through a nested CNO PK model (chemogenetic::Model).
@@ -480,7 +504,7 @@ const DEFAULT_CLZ_BRAIN_VD: f64 = 8.87e-2;
 #[cfg_attr(feature = "py", pyclass)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Builder)]
-#[builder(derive(Debug))]
+#[builder(derive(Debug), build_fn(validate = "Self::validate"))]
 pub struct Model {
     #[builder(default = "vec![Dose::new(DEFAULT_DOSE, DEFAULT_DOSE_TIME)]")]
     pub doses: Vec<Dose>,
@@ -557,6 +581,16 @@ impl Default for Model {
     }
 }
 
+impl ModelBuilder {
+    fn validate(&self) -> Result<(), String> {
+        if let Some(doses) = self.doses.as_deref() {
+            validate_unique_dose_times(doses).map_err(|e| e.to_string())
+        } else {
+            Ok(())
+        }
+    }
+}
+
 impl CNOPKAccess for Model {
     fn get_doses(&self) -> &Vec<Dose> {
         &self.doses
@@ -594,7 +628,7 @@ impl Solve for Model {
             .count();
         start_dose_idx += n_applied_doses;
 
-        let mut dosing_solout = DoseApplyingSolout::<State<f64>>::new(
+        let mut dosing_solout = DoseApplyingSolout::<State<f64>, Dose>::new(
             self.doses[start_dose_idx..].to_vec(),
             t0,
             tf,
@@ -641,8 +675,10 @@ impl Model {
         cno_brain_vd: f64,
         clz_plasma_vd: f64,
         clz_brain_vd: f64,
-    ) -> Self {
-        Self {
+    ) -> PyResult<Self> {
+        validate_unique_dose_times(&doses).map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+        Ok(Self {
             doses,
             cno_absorption,
             cno_elimination,
@@ -657,7 +693,7 @@ impl Model {
             cno_brain_vd,
             clz_plasma_vd,
             clz_brain_vd,
-        }
+        })
     }
 
     #[pyo3(name = "solve")]
@@ -918,6 +954,14 @@ mod tests {
         assert_eq!(model_with_schedule.doses.len(), 2);
 
         Ok(())
+    }
+
+    #[test]
+    fn cno_model_rejects_duplicate_nonzero_dose_times() {
+        let duplicate_doses = vec![Dose::new(0.03, 1.), Dose::new(0.05, 1.)];
+        let result = Model::builder().doses(duplicate_doses).build();
+
+        assert!(result.is_err());
     }
 
     #[test]

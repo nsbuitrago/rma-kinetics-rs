@@ -53,24 +53,40 @@
         { pkgs }:
         {
           default = pkgs.mkShell {
-            packages = with pkgs; [
-              rustToolchain
-              openssl
-              pkg-config
-              cargo-deny
-              cargo-edit
-              cargo-watch
-              rust-analyzer
-              uv
-              maturin
-              just
-	      git
-            ];
+            packages =
+              (with pkgs; [
+                rustToolchain
+                openssl
+                pkg-config
+                cargo-deny
+                cargo-edit
+                cargo-watch
+                rust-analyzer
+                uv
+                maturin
+                just
+                git
+              ])
+              ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+                pkgs.python313
+                pkgs.zlib
+                pkgs.stdenv.cc.cc.lib
+              ];
 
-            env = {
-              # Required by rust-analyzer
-              RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
-            };
+            env =
+              {
+                # Required by rust-analyzer
+                RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
+              }
+              // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+                UV_PYTHON_DOWNLOADS = "never";
+                UV_PYTHON_PREFERENCE = "only-system";
+                UV_PYTHON = "${pkgs.python313}/bin/python3.13";
+                LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+                  pkgs.stdenv.cc.cc.lib
+                  pkgs.zlib
+                ];
+              };
           };
         }
       );

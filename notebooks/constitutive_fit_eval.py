@@ -74,9 +74,9 @@ def _(
     time = np.linspace(0, 505, 505)
 
     for (mean, hdi, df, label), color, shape in zip([
-        (ca1_mean, ca1_hdi, ca1_summary_df, "CA1"),
-        (sn_mean,  sn_hdi,  sn_summary_df,  "SN"),
-        (cp_mean,  cp_hdi,  cp_summary_df,  "CP"),
+        (ca1_mean, ca1_hdi, ca1_summary_df, "Hippocampus"),
+        (sn_mean,  sn_hdi,  sn_summary_df,  "Midbrain"),
+        (cp_mean,  cp_hdi,  cp_summary_df,  "Striatum"),
     ], colors, shapes):
         plt.plot(time, mean, color=color, label=label)
         plt.fill_between(time, hdi[:, 0], hdi[:, 1], color=color, alpha=0.25)

@@ -26,24 +26,36 @@
 //! ```
 
 use crate::{
+    SolutionAccess, Solve,
     models::{
         cno::{CNOFields, CNOPKAccess, Dose, Model as CNOModel},
         dox::{DoxFields, Model as DoxModel},
     },
     pk::DoseApplyingSolout,
     solve::SpeciesAccessError,
-    SolutionAccess, Solve,
 };
 use derive_builder::Builder;
 use differential_equations::{
     derive::State as StateTrait,
     error::Error,
-    ode::{ODEProblem, OrdinaryNumericalMethod, ODE},
+    ode::{ODE, ODEProblem, OrdinaryNumericalMethod},
     prelude::{Interpolation, Solution},
 };
 
 #[cfg(feature = "py")]
-use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+
+#[cfg(feature = "py")]
+use differential_equations::methods::DiagonallyImplicitRungeKutta;
+
+#[cfg(feature = "py")]
+use crate::models::{cno::State as CNOState, dox::State as DoxState};
+
+#[cfg(feature = "py")]
+use numpy::{PyArray1, PyArray2, PyReadonlyArray1};
+
+#[cfg(feature = "py")]
+use pyo3::{Bound, Python};
 
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};
@@ -676,6 +688,768 @@ impl Solve for Model {
         solution.y = y;
 
         Ok(solution)
+    }
+}
+
+#[cfg(feature = "py")]
+const INFERENCE_N_STATE: usize = 4;
+#[cfg(feature = "py")]
+const INFERENCE_N_PARAMS: usize = 13;
+#[cfg(feature = "py")]
+const INFERENCE_N_GLOBAL_PARAMS: usize = 11;
+#[cfg(feature = "py")]
+const INFERENCE_DREADD_DEG: f64 = 1.0;
+
+#[cfg(feature = "py")]
+const IDX_LOG_PROD_LOCAL: usize = 0;
+#[cfg(feature = "py")]
+const IDX_LOG_LEAKY_PROD_LOCAL: usize = 1;
+#[cfg(feature = "py")]
+const IDX_LOG_BBB: usize = 2;
+#[cfg(feature = "py")]
+const IDX_LOG_DEG: usize = 3;
+#[cfg(feature = "py")]
+const IDX_LOG_TTA_PROD: usize = 4;
+#[cfg(feature = "py")]
+const IDX_LOG_TTA_LEAKY_PROD: usize = 5;
+#[cfg(feature = "py")]
+const IDX_LOG_TTA_DEG: usize = 6;
+#[cfg(feature = "py")]
+const IDX_LOG_TTA_KD: usize = 7;
+#[cfg(feature = "py")]
+const IDX_LOG_DOX_KD: usize = 8;
+#[cfg(feature = "py")]
+const IDX_LOG_CNO_EC50: usize = 9;
+#[cfg(feature = "py")]
+const IDX_LOG_CLZ_EC50: usize = 10;
+#[cfg(feature = "py")]
+const IDX_LOG_DREADD_PROD: usize = 11;
+#[cfg(feature = "py")]
+const IDX_LOG_DREADD_EC50: usize = 12;
+
+#[cfg(feature = "py")]
+const Y_TTA: usize = 0;
+#[cfg(feature = "py")]
+const Y_DREADD: usize = 1;
+#[cfg(feature = "py")]
+const Y_BRAIN_RMA: usize = 2;
+#[cfg(feature = "py")]
+const Y_PLASMA_RMA: usize = 3;
+
+#[cfg(feature = "py")]
+type ReducedState = [f64; INFERENCE_N_STATE];
+#[cfg(feature = "py")]
+type ReducedSensitivity = [[f64; INFERENCE_N_PARAMS]; INFERENCE_N_STATE];
+
+#[cfg(feature = "py")]
+fn pow_with_grad(base: f64, exponent: f64) -> (f64, f64) {
+    if base <= 0.0 {
+        if (exponent - 1.0).abs() < 1e-12 {
+            (0.0, 1.0)
+        } else {
+            (0.0, 0.0)
+        }
+    } else {
+        let value = base.powf(exponent);
+        let grad = exponent * base.powf(exponent - 1.0);
+        (value, grad)
+    }
+}
+
+#[cfg(feature = "py")]
+fn interpolate_scalar(ts: &[f64], ys: &[f64], t: f64) -> f64 {
+    if t <= ts[0] {
+        return ys[0];
+    }
+
+    let last_idx = ts.len() - 1;
+    if t >= ts[last_idx] {
+        return ys[last_idx];
+    }
+
+    let upper = ts.partition_point(|x| *x < t);
+    let lower = upper - 1;
+    let dt = ts[upper] - ts[lower];
+    if dt.abs() < 1e-12 {
+        return ys[lower];
+    }
+    let w = (t - ts[lower]) / dt;
+    ys[lower] + (ys[upper] - ys[lower]) * w
+}
+
+#[cfg(feature = "py")]
+fn interpolate_sensitivity(
+    ts: &[f64],
+    ys: &[[f64; INFERENCE_N_PARAMS]],
+    t: f64,
+) -> [f64; INFERENCE_N_PARAMS] {
+    if t <= ts[0] {
+        return ys[0];
+    }
+
+    let last_idx = ts.len() - 1;
+    if t >= ts[last_idx] {
+        return ys[last_idx];
+    }
+
+    let upper = ts.partition_point(|x| *x < t);
+    let lower = upper - 1;
+    let dt = ts[upper] - ts[lower];
+    if dt.abs() < 1e-12 {
+        return ys[lower];
+    }
+
+    let w = (t - ts[lower]) / dt;
+    let mut out = [0.0; INFERENCE_N_PARAMS];
+    for p in 0..INFERENCE_N_PARAMS {
+        out[p] = ys[lower][p] + (ys[upper][p] - ys[lower][p]) * w;
+    }
+    out
+}
+
+#[cfg(feature = "py")]
+#[derive(Clone)]
+struct ForcingSeries {
+    dox_t: Vec<f64>,
+    dox_v: Vec<f64>,
+    cno_t: Vec<f64>,
+    cno_v: Vec<f64>,
+    clz_t: Vec<f64>,
+    clz_v: Vec<f64>,
+}
+
+#[cfg(feature = "py")]
+impl ForcingSeries {
+    fn at(&self, t: f64) -> (f64, f64, f64) {
+        (
+            interpolate_scalar(&self.dox_t, &self.dox_v, t),
+            interpolate_scalar(&self.cno_t, &self.cno_v, t),
+            interpolate_scalar(&self.clz_t, &self.clz_v, t),
+        )
+    }
+}
+
+#[cfg(feature = "py")]
+#[derive(Clone, Copy)]
+struct InferenceParams {
+    rma_prod: f64,
+    leaky_rma_prod: f64,
+    rma_bbb_transport: f64,
+    rma_deg: f64,
+    tta_prod: f64,
+    leaky_tta_prod: f64,
+    tta_deg: f64,
+    tta_kd: f64,
+    dox_tta_kd: f64,
+    cno_ec50: f64,
+    clz_ec50: f64,
+    dreadd_prod: f64,
+    dreadd_ec50: f64,
+    tta_cooperativity: f64,
+    cno_cooperativity: f64,
+    clz_cooperativity: f64,
+    dreadd_cooperativity: f64,
+}
+
+#[cfg(feature = "py")]
+fn rhs_and_jacobians(
+    y: &ReducedState,
+    forcing: (f64, f64, f64),
+    p: &InferenceParams,
+) -> (
+    ReducedState,
+    [[f64; INFERENCE_N_STATE]; INFERENCE_N_STATE],
+    [[f64; INFERENCE_N_PARAMS]; INFERENCE_N_STATE],
+) {
+    let tta = y[Y_TTA];
+    let dreadd = y[Y_DREADD];
+    let brain_rma = y[Y_BRAIN_RMA];
+    let plasma_rma = y[Y_PLASMA_RMA];
+
+    let (brain_dox, brain_cno, brain_clz) = forcing;
+
+    let cno_ratio = if p.cno_ec50 > 0.0 {
+        brain_cno / p.cno_ec50
+    } else {
+        0.0
+    };
+    let clz_ratio = if p.clz_ec50 > 0.0 {
+        brain_clz / p.clz_ec50
+    } else {
+        0.0
+    };
+
+    let (cno_ec50_hill, dcno_hill_dcno_ratio) = pow_with_grad(cno_ratio, p.cno_cooperativity);
+    let (clz_ec50_hill, dclz_hill_dclz_ratio) = pow_with_grad(clz_ratio, p.clz_cooperativity);
+
+    let q = cno_ec50_hill + clz_ec50_hill;
+    let one_plus_q = 1.0 + q;
+    let active_dreadd_frac = q / one_plus_q;
+    let dactive_frac_dq = 1.0 / (one_plus_q * one_plus_q);
+
+    let dreadd_mod_base = if p.dreadd_ec50 > 0.0 {
+        active_dreadd_frac * dreadd / p.dreadd_ec50
+    } else {
+        0.0
+    };
+    let (dreadd_mod, ddreadd_mod_ddreadd_mod_base) =
+        pow_with_grad(dreadd_mod_base, p.dreadd_cooperativity);
+
+    let one_plus_dreadd_mod = 1.0 + dreadd_mod;
+    let tta_expr = (p.leaky_tta_prod + (p.tta_prod * dreadd_mod)) / one_plus_dreadd_mod;
+
+    let dtta_expr_ddreadd_mod =
+        (p.tta_prod - p.leaky_tta_prod) / (one_plus_dreadd_mod * one_plus_dreadd_mod);
+
+    let d_dreadd_mod_base_ddreadd = if p.dreadd_ec50 > 0.0 {
+        active_dreadd_frac / p.dreadd_ec50
+    } else {
+        0.0
+    };
+    let d_dreadd_mod_ddreadd = ddreadd_mod_ddreadd_mod_base * d_dreadd_mod_base_ddreadd;
+
+    let d_cno_hill_dlog_cno_ec50 = -p.cno_cooperativity * cno_ec50_hill;
+    let d_clz_hill_dlog_clz_ec50 = -p.clz_cooperativity * clz_ec50_hill;
+
+    let d_q_dlog_cno_ec50 = d_cno_hill_dlog_cno_ec50;
+    let d_q_dlog_clz_ec50 = d_clz_hill_dlog_clz_ec50;
+
+    let d_active_dreadd_frac_dlog_cno_ec50 = dactive_frac_dq * d_q_dlog_cno_ec50;
+    let d_active_dreadd_frac_dlog_clz_ec50 = dactive_frac_dq * d_q_dlog_clz_ec50;
+
+    let d_dreadd_mod_base_dlog_cno_ec50 = if p.dreadd_ec50 > 0.0 {
+        (dreadd / p.dreadd_ec50) * d_active_dreadd_frac_dlog_cno_ec50
+    } else {
+        0.0
+    };
+    let d_dreadd_mod_base_dlog_clz_ec50 = if p.dreadd_ec50 > 0.0 {
+        (dreadd / p.dreadd_ec50) * d_active_dreadd_frac_dlog_clz_ec50
+    } else {
+        0.0
+    };
+    let d_dreadd_mod_base_dlog_dreadd_ec50 = -dreadd_mod_base;
+
+    let d_dreadd_mod_dlog_cno_ec50 = ddreadd_mod_ddreadd_mod_base * d_dreadd_mod_base_dlog_cno_ec50;
+    let d_dreadd_mod_dlog_clz_ec50 = ddreadd_mod_ddreadd_mod_base * d_dreadd_mod_base_dlog_clz_ec50;
+    let d_dreadd_mod_dlog_dreadd_ec50 =
+        ddreadd_mod_ddreadd_mod_base * d_dreadd_mod_base_dlog_dreadd_ec50;
+
+    let active_tta = if p.dox_tta_kd > 0.0 {
+        1.0 / (1.0 + (brain_dox / p.dox_tta_kd))
+    } else {
+        0.0
+    };
+    let tta_hill_base = if p.tta_kd > 0.0 {
+        (active_tta * tta) / p.tta_kd
+    } else {
+        0.0
+    };
+    let (tta_hill, dtta_hill_dtta_hill_base) = pow_with_grad(tta_hill_base, p.tta_cooperativity);
+
+    let one_plus_tta_hill = 1.0 + tta_hill;
+    let brain_expr = (p.leaky_rma_prod + (p.rma_prod * tta_hill)) / one_plus_tta_hill;
+    let dbrain_expr_dtta_hill =
+        (p.rma_prod - p.leaky_rma_prod) / (one_plus_tta_hill * one_plus_tta_hill);
+
+    let dtta_hill_base_dtta = if p.tta_kd > 0.0 {
+        active_tta / p.tta_kd
+    } else {
+        0.0
+    };
+    let dtta_hill_dtta = dtta_hill_dtta_hill_base * dtta_hill_base_dtta;
+
+    let dtta_hill_dlog_tta_kd = -p.tta_cooperativity * tta_hill;
+    let d_active_tta_dlog_dox_kd = active_tta * (1.0 - active_tta);
+    let dtta_hill_base_dlog_dox_kd = if p.tta_kd > 0.0 {
+        (tta / p.tta_kd) * d_active_tta_dlog_dox_kd
+    } else {
+        0.0
+    };
+    let dtta_hill_dlog_dox_kd = dtta_hill_dtta_hill_base * dtta_hill_base_dlog_dox_kd;
+
+    let mut dydt = [0.0; INFERENCE_N_STATE];
+    dydt[Y_TTA] = tta_expr - (p.tta_deg * tta);
+    dydt[Y_DREADD] = p.dreadd_prod - (INFERENCE_DREADD_DEG * dreadd);
+    dydt[Y_BRAIN_RMA] = brain_expr - (p.rma_bbb_transport * brain_rma);
+    dydt[Y_PLASMA_RMA] = (p.rma_bbb_transport * brain_rma) - (p.rma_deg * plasma_rma);
+
+    let mut jy = [[0.0; INFERENCE_N_STATE]; INFERENCE_N_STATE];
+    jy[Y_TTA][Y_TTA] = -p.tta_deg;
+    jy[Y_TTA][Y_DREADD] = dtta_expr_ddreadd_mod * d_dreadd_mod_ddreadd;
+    jy[Y_DREADD][Y_DREADD] = -INFERENCE_DREADD_DEG;
+    jy[Y_BRAIN_RMA][Y_TTA] = dbrain_expr_dtta_hill * dtta_hill_dtta;
+    jy[Y_BRAIN_RMA][Y_BRAIN_RMA] = -p.rma_bbb_transport;
+    jy[Y_PLASMA_RMA][Y_BRAIN_RMA] = p.rma_bbb_transport;
+    jy[Y_PLASMA_RMA][Y_PLASMA_RMA] = -p.rma_deg;
+
+    let mut jp = [[0.0; INFERENCE_N_PARAMS]; INFERENCE_N_STATE];
+
+    jp[Y_TTA][IDX_LOG_TTA_PROD] = (p.tta_prod * dreadd_mod) / one_plus_dreadd_mod;
+    jp[Y_TTA][IDX_LOG_TTA_LEAKY_PROD] = p.leaky_tta_prod / one_plus_dreadd_mod;
+    jp[Y_TTA][IDX_LOG_TTA_DEG] = -p.tta_deg * tta;
+    jp[Y_TTA][IDX_LOG_CNO_EC50] = dtta_expr_ddreadd_mod * d_dreadd_mod_dlog_cno_ec50;
+    jp[Y_TTA][IDX_LOG_CLZ_EC50] = dtta_expr_ddreadd_mod * d_dreadd_mod_dlog_clz_ec50;
+    jp[Y_TTA][IDX_LOG_DREADD_EC50] = dtta_expr_ddreadd_mod * d_dreadd_mod_dlog_dreadd_ec50;
+
+    jp[Y_DREADD][IDX_LOG_DREADD_PROD] = p.dreadd_prod;
+
+    jp[Y_BRAIN_RMA][IDX_LOG_PROD_LOCAL] = (p.rma_prod * tta_hill) / one_plus_tta_hill;
+    jp[Y_BRAIN_RMA][IDX_LOG_LEAKY_PROD_LOCAL] = p.leaky_rma_prod / one_plus_tta_hill;
+    jp[Y_BRAIN_RMA][IDX_LOG_BBB] = -p.rma_bbb_transport * brain_rma;
+    jp[Y_BRAIN_RMA][IDX_LOG_TTA_KD] = dbrain_expr_dtta_hill * dtta_hill_dlog_tta_kd;
+    jp[Y_BRAIN_RMA][IDX_LOG_DOX_KD] = dbrain_expr_dtta_hill * dtta_hill_dlog_dox_kd;
+
+    jp[Y_PLASMA_RMA][IDX_LOG_BBB] = p.rma_bbb_transport * brain_rma;
+    jp[Y_PLASMA_RMA][IDX_LOG_DEG] = -p.rma_deg * plasma_rma;
+
+    let _ = dcno_hill_dcno_ratio;
+    let _ = dclz_hill_dclz_ratio;
+
+    (dydt, jy, jp)
+}
+
+#[cfg(feature = "py")]
+fn augmented_derivative(
+    t: f64,
+    y: &ReducedState,
+    s: &ReducedSensitivity,
+    p: &InferenceParams,
+    forcing: &ForcingSeries,
+) -> (ReducedState, ReducedSensitivity) {
+    let forcing_values = forcing.at(t);
+    let (dy, jy, jp) = rhs_and_jacobians(y, forcing_values, p);
+
+    let mut ds = [[0.0; INFERENCE_N_PARAMS]; INFERENCE_N_STATE];
+    for i in 0..INFERENCE_N_STATE {
+        for j in 0..INFERENCE_N_PARAMS {
+            let mut value = jp[i][j];
+            for k in 0..INFERENCE_N_STATE {
+                value += jy[i][k] * s[k][j];
+            }
+            ds[i][j] = value;
+        }
+    }
+
+    (dy, ds)
+}
+
+#[cfg(feature = "py")]
+fn rk4_step_augmented(
+    t: f64,
+    h: f64,
+    y: &ReducedState,
+    s: &ReducedSensitivity,
+    p: &InferenceParams,
+    forcing: &ForcingSeries,
+) -> (ReducedState, ReducedSensitivity) {
+    let (k1y, k1s) = augmented_derivative(t, y, s, p, forcing);
+
+    let mut y2 = [0.0; INFERENCE_N_STATE];
+    let mut s2 = [[0.0; INFERENCE_N_PARAMS]; INFERENCE_N_STATE];
+    for i in 0..INFERENCE_N_STATE {
+        y2[i] = y[i] + 0.5 * h * k1y[i];
+        for j in 0..INFERENCE_N_PARAMS {
+            s2[i][j] = s[i][j] + 0.5 * h * k1s[i][j];
+        }
+    }
+
+    let (k2y, k2s) = augmented_derivative(t + 0.5 * h, &y2, &s2, p, forcing);
+
+    let mut y3 = [0.0; INFERENCE_N_STATE];
+    let mut s3 = [[0.0; INFERENCE_N_PARAMS]; INFERENCE_N_STATE];
+    for i in 0..INFERENCE_N_STATE {
+        y3[i] = y[i] + 0.5 * h * k2y[i];
+        for j in 0..INFERENCE_N_PARAMS {
+            s3[i][j] = s[i][j] + 0.5 * h * k2s[i][j];
+        }
+    }
+
+    let (k3y, k3s) = augmented_derivative(t + 0.5 * h, &y3, &s3, p, forcing);
+
+    let mut y4 = [0.0; INFERENCE_N_STATE];
+    let mut s4 = [[0.0; INFERENCE_N_PARAMS]; INFERENCE_N_STATE];
+    for i in 0..INFERENCE_N_STATE {
+        y4[i] = y[i] + h * k3y[i];
+        for j in 0..INFERENCE_N_PARAMS {
+            s4[i][j] = s[i][j] + h * k3s[i][j];
+        }
+    }
+
+    let (k4y, k4s) = augmented_derivative(t + h, &y4, &s4, p, forcing);
+
+    let mut y_next = [0.0; INFERENCE_N_STATE];
+    let mut s_next = [[0.0; INFERENCE_N_PARAMS]; INFERENCE_N_STATE];
+    for i in 0..INFERENCE_N_STATE {
+        y_next[i] = y[i] + (h / 6.0) * (k1y[i] + (2.0 * k2y[i]) + (2.0 * k3y[i]) + k4y[i]);
+        for j in 0..INFERENCE_N_PARAMS {
+            s_next[i][j] = s[i][j]
+                + (h / 6.0) * (k1s[i][j] + (2.0 * k2s[i][j]) + (2.0 * k3s[i][j]) + k4s[i][j]);
+        }
+    }
+
+    (y_next, s_next)
+}
+
+#[cfg(feature = "py")]
+fn to_pyarray2<'py>(
+    py: Python<'py>,
+    flat: &[f64],
+    rows: usize,
+    cols: usize,
+) -> PyResult<Bound<'py, PyArray2<f64>>> {
+    let mut vec2 = Vec::with_capacity(rows);
+    for r in 0..rows {
+        let start = r * cols;
+        let stop = start + cols;
+        vec2.push(flat[start..stop].to_vec());
+    }
+    PyArray2::from_vec2(py, &vec2)
+        .map_err(|e| PyValueError::new_err(format!("Failed to create numpy matrix: {}", e)))
+}
+
+#[cfg(feature = "py")]
+fn build_forcing_series(
+    t0: f64,
+    tf: f64,
+    dt_sub: f64,
+    dox_pk_model: &DoxModel,
+    cno_pk_model: &CNOModel,
+    plasma_dox_ss: f64,
+    brain_dox_ss: f64,
+) -> PyResult<ForcingSeries> {
+    let mut dox_solver = DiagonallyImplicitRungeKutta::kvaerno423()
+        .h0(dt_sub)
+        .h_max(dt_sub);
+    let dox_solution = dox_pk_model
+        .solve(
+            t0,
+            tf,
+            dt_sub,
+            DoxState::new(plasma_dox_ss, brain_dox_ss),
+            &mut dox_solver,
+        )
+        .map_err(|e| PyValueError::new_err(format!("Failed to solve dox PK model: {:?}", e)))?;
+
+    let dox_t = dox_solution.t.clone();
+    let dox_v = dox_solution.brain_dox().map_err(|e| {
+        PyValueError::new_err(format!("Failed to access dox concentrations: {}", e))
+    })?;
+
+    if dox_t.iter().any(|value| !value.is_finite()) || dox_v.iter().any(|value| !value.is_finite())
+    {
+        return Err(PyValueError::new_err(
+            "Non-finite values encountered in dox forcing series",
+        ));
+    }
+
+    let mut cno_solver = DiagonallyImplicitRungeKutta::kvaerno423()
+        .h0(dt_sub)
+        .h_max(dt_sub);
+    let cno_solution = cno_pk_model
+        .solve(t0, tf, dt_sub, CNOState::zeros(), &mut cno_solver)
+        .map_err(|e| PyValueError::new_err(format!("Failed to solve CNO PK model: {:?}", e)))?;
+
+    let cno_t = cno_solution.t.clone();
+    let cno_v = cno_solution.brain_cno().map_err(|e| {
+        PyValueError::new_err(format!("Failed to access CNO concentrations: {}", e))
+    })?;
+    let clz_t = cno_solution.t.clone();
+    let clz_v = cno_solution.brain_clz().map_err(|e| {
+        PyValueError::new_err(format!("Failed to access CLZ concentrations: {}", e))
+    })?;
+
+    if cno_t.iter().any(|value| !value.is_finite())
+        || cno_v.iter().any(|value| !value.is_finite())
+        || clz_t.iter().any(|value| !value.is_finite())
+        || clz_v.iter().any(|value| !value.is_finite())
+    {
+        return Err(PyValueError::new_err(
+            "Non-finite values encountered in CNO/CLZ forcing series",
+        ));
+    }
+
+    Ok(ForcingSeries {
+        dox_t,
+        dox_v,
+        cno_t,
+        cno_v,
+        clz_t,
+        clz_v,
+    })
+}
+
+#[cfg(feature = "py")]
+#[pyclass(name = "SensitivityEngine")]
+#[derive(Clone)]
+pub struct SensitivityEngine {
+    n_mice: usize,
+    n_obs: usize,
+    obs_time: Vec<f64>,
+    obs_by_mouse: Vec<Vec<usize>>,
+    t0: f64,
+    tf: f64,
+    dt_sub: f64,
+    forcing: ForcingSeries,
+    tta_cooperativity: f64,
+    cno_cooperativity: f64,
+    clz_cooperativity: f64,
+    dreadd_cooperativity: f64,
+}
+
+#[cfg(feature = "py")]
+#[pymethods]
+impl SensitivityEngine {
+    #[new]
+    #[pyo3(signature = (mouse_id, obs_time, n_mice, dox_pk_model=DoxModel::default(), cno_pk_model=CNOModel::default(), plasma_dox_ss=0.0, brain_dox_ss=0.0, t0=0.0, dt_sub=0.25, tta_cooperativity=DEFAULT_TTA_COOPERATIVITY, cno_cooperativity=DEFAULT_CNO_COOPERATIVITY, clz_cooperativity=DEFAULT_CLZ_COOPERATIVITY, dreadd_cooperativity=DEFAULT_DREADD_COOPERATIVITY))]
+    fn new(
+        mouse_id: PyReadonlyArray1<'_, i64>,
+        obs_time: PyReadonlyArray1<'_, f64>,
+        n_mice: usize,
+        dox_pk_model: DoxModel,
+        cno_pk_model: CNOModel,
+        plasma_dox_ss: f64,
+        brain_dox_ss: f64,
+        t0: f64,
+        dt_sub: f64,
+        tta_cooperativity: f64,
+        cno_cooperativity: f64,
+        clz_cooperativity: f64,
+        dreadd_cooperativity: f64,
+    ) -> PyResult<Self> {
+        if n_mice == 0 {
+            return Err(PyValueError::new_err("n_mice must be > 0"));
+        }
+        if dt_sub <= 0.0 {
+            return Err(PyValueError::new_err("dt_sub must be > 0"));
+        }
+
+        let mouse_id_vec = mouse_id
+            .as_array()
+            .iter()
+            .map(|value| {
+                if *value < 0 {
+                    Err(PyValueError::new_err("mouse_id values must be >= 0"))
+                } else {
+                    Ok(*value as usize)
+                }
+            })
+            .collect::<PyResult<Vec<usize>>>()?;
+
+        let obs_time_vec = obs_time.as_array().iter().copied().collect::<Vec<f64>>();
+
+        if mouse_id_vec.len() != obs_time_vec.len() {
+            return Err(PyValueError::new_err(
+                "mouse_id and obs_time must have matching lengths",
+            ));
+        }
+        if obs_time_vec.is_empty() {
+            return Err(PyValueError::new_err("obs_time must not be empty"));
+        }
+
+        let mut obs_by_mouse = vec![Vec::<usize>::new(); n_mice];
+        let mut tf = t0;
+        for (idx, m) in mouse_id_vec.iter().enumerate() {
+            if *m >= n_mice {
+                return Err(PyValueError::new_err(format!(
+                    "mouse_id {} is out of bounds for n_mice={}",
+                    m, n_mice
+                )));
+            }
+            let t = obs_time_vec[idx];
+            if t < t0 {
+                return Err(PyValueError::new_err(format!(
+                    "obs_time at index {} is below t0: {} < {}",
+                    idx, t, t0
+                )));
+            }
+            tf = tf.max(t);
+            obs_by_mouse[*m].push(idx);
+        }
+
+        if tf <= t0 {
+            tf = t0 + dt_sub;
+        }
+
+        let forcing = build_forcing_series(
+            t0,
+            tf,
+            dt_sub,
+            &dox_pk_model,
+            &cno_pk_model,
+            plasma_dox_ss,
+            brain_dox_ss,
+        )?;
+
+        Ok(Self {
+            n_mice,
+            n_obs: obs_time_vec.len(),
+            obs_time: obs_time_vec,
+            obs_by_mouse,
+            t0,
+            tf,
+            dt_sub,
+            forcing,
+            tta_cooperativity,
+            cno_cooperativity,
+            clz_cooperativity,
+            dreadd_cooperativity,
+        })
+    }
+
+    #[pyo3(signature = (log_prod_mouse, log_leaky_prod_mouse, log_bbb, log_deg, log_tta_prod, log_tta_leaky_prod, log_tta_deg, log_tta_kd, log_dox_kd, log_cno_ec50, log_clz_ec50, log_dreadd_prod, log_dreadd_ec50))]
+    fn predict_with_jacobian<'py>(
+        &self,
+        py: Python<'py>,
+        log_prod_mouse: PyReadonlyArray1<'_, f64>,
+        log_leaky_prod_mouse: PyReadonlyArray1<'_, f64>,
+        log_bbb: f64,
+        log_deg: f64,
+        log_tta_prod: f64,
+        log_tta_leaky_prod: f64,
+        log_tta_deg: f64,
+        log_tta_kd: f64,
+        log_dox_kd: f64,
+        log_cno_ec50: f64,
+        log_clz_ec50: f64,
+        log_dreadd_prod: f64,
+        log_dreadd_ec50: f64,
+    ) -> PyResult<(
+        Bound<'py, PyArray1<f64>>,
+        Bound<'py, PyArray2<f64>>,
+        Bound<'py, PyArray2<f64>>,
+        Bound<'py, PyArray2<f64>>,
+    )> {
+        let log_prod = log_prod_mouse
+            .as_array()
+            .iter()
+            .copied()
+            .collect::<Vec<f64>>();
+        let log_leaky = log_leaky_prod_mouse
+            .as_array()
+            .iter()
+            .copied()
+            .collect::<Vec<f64>>();
+
+        if log_prod.len() != self.n_mice {
+            return Err(PyValueError::new_err(format!(
+                "log_prod_mouse length {} does not match n_mice {}",
+                log_prod.len(),
+                self.n_mice
+            )));
+        }
+        if log_leaky.len() != self.n_mice {
+            return Err(PyValueError::new_err(format!(
+                "log_leaky_prod_mouse length {} does not match n_mice {}",
+                log_leaky.len(),
+                self.n_mice
+            )));
+        }
+
+        let mut mu = vec![0.0; self.n_obs];
+        let mut dmu_dlog_prod_mouse = vec![0.0; self.n_obs * self.n_mice];
+        let mut dmu_dlog_leaky_prod_mouse = vec![0.0; self.n_obs * self.n_mice];
+        let mut dmu_dglobal = vec![0.0; self.n_obs * INFERENCE_N_GLOBAL_PARAMS];
+
+        for m in 0..self.n_mice {
+            if self.obs_by_mouse[m].is_empty() {
+                continue;
+            }
+
+            let params = InferenceParams {
+                rma_prod: log_prod[m].exp(),
+                leaky_rma_prod: log_leaky[m].exp(),
+                rma_bbb_transport: log_bbb.exp(),
+                rma_deg: log_deg.exp(),
+                tta_prod: log_tta_prod.exp(),
+                leaky_tta_prod: log_tta_leaky_prod.exp(),
+                tta_deg: log_tta_deg.exp(),
+                tta_kd: log_tta_kd.exp(),
+                dox_tta_kd: log_dox_kd.exp(),
+                cno_ec50: log_cno_ec50.exp(),
+                clz_ec50: log_clz_ec50.exp(),
+                dreadd_prod: log_dreadd_prod.exp(),
+                dreadd_ec50: log_dreadd_ec50.exp(),
+                tta_cooperativity: self.tta_cooperativity,
+                cno_cooperativity: self.cno_cooperativity,
+                clz_cooperativity: self.clz_cooperativity,
+                dreadd_cooperativity: self.dreadd_cooperativity,
+            };
+
+            let mut t = self.t0;
+            let mut y = [0.0; INFERENCE_N_STATE];
+            y[Y_TTA] = 0.0;
+            y[Y_DREADD] = params.dreadd_prod;
+            y[Y_BRAIN_RMA] = 0.0;
+            y[Y_PLASMA_RMA] = 0.0;
+
+            let mut s = [[0.0; INFERENCE_N_PARAMS]; INFERENCE_N_STATE];
+            s[Y_DREADD][IDX_LOG_DREADD_PROD] = params.dreadd_prod;
+
+            let mut ts = vec![t];
+            let mut plasma = vec![y[Y_PLASMA_RMA]];
+            let mut plasma_sens = vec![s[Y_PLASMA_RMA]];
+
+            while t < self.tf - 1e-12 {
+                let h = self.dt_sub.min(self.tf - t);
+                let (y_next, s_next) = rk4_step_augmented(t, h, &y, &s, &params, &self.forcing);
+                t += h;
+                y = y_next;
+                s = s_next;
+
+                if !(y[Y_PLASMA_RMA].is_finite()) {
+                    return Err(PyValueError::new_err(
+                        "non-finite plasma_rma produced during sensitivity integration",
+                    ));
+                }
+
+                ts.push(t);
+                plasma.push(y[Y_PLASMA_RMA]);
+                plasma_sens.push(s[Y_PLASMA_RMA]);
+            }
+
+            for &obs_idx in &self.obs_by_mouse[m] {
+                let t_obs = self.obs_time[obs_idx];
+                let mu_val = interpolate_scalar(&ts, &plasma, t_obs);
+                let sens_val = interpolate_sensitivity(&ts, &plasma_sens, t_obs);
+
+                mu[obs_idx] = mu_val;
+                dmu_dlog_prod_mouse[(obs_idx * self.n_mice) + m] = sens_val[IDX_LOG_PROD_LOCAL];
+                dmu_dlog_leaky_prod_mouse[(obs_idx * self.n_mice) + m] =
+                    sens_val[IDX_LOG_LEAKY_PROD_LOCAL];
+
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 0] = sens_val[IDX_LOG_BBB];
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 1] = sens_val[IDX_LOG_DEG];
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 2] = sens_val[IDX_LOG_TTA_PROD];
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 3] =
+                    sens_val[IDX_LOG_TTA_LEAKY_PROD];
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 4] = sens_val[IDX_LOG_TTA_DEG];
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 5] = sens_val[IDX_LOG_TTA_KD];
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 6] = sens_val[IDX_LOG_DOX_KD];
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 7] = sens_val[IDX_LOG_CNO_EC50];
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 8] = sens_val[IDX_LOG_CLZ_EC50];
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 9] =
+                    sens_val[IDX_LOG_DREADD_PROD];
+                dmu_dglobal[(obs_idx * INFERENCE_N_GLOBAL_PARAMS) + 10] =
+                    sens_val[IDX_LOG_DREADD_EC50];
+            }
+        }
+
+        let mu_py = PyArray1::from_vec(py, mu);
+        let jac_prod_py = to_pyarray2(py, &dmu_dlog_prod_mouse, self.n_obs, self.n_mice)?;
+        let jac_leaky_py = to_pyarray2(py, &dmu_dlog_leaky_prod_mouse, self.n_obs, self.n_mice)?;
+        let jac_global_py = to_pyarray2(py, &dmu_dglobal, self.n_obs, INFERENCE_N_GLOBAL_PARAMS)?;
+
+        Ok((mu_py, jac_prod_py, jac_leaky_py, jac_global_py))
+    }
+
+    #[getter]
+    fn get_n_obs(&self) -> usize {
+        self.n_obs
+    }
+
+    #[getter]
+    fn get_n_mice(&self) -> usize {
+        self.n_mice
     }
 }
 

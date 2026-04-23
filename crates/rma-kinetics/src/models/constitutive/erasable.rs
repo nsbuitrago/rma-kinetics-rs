@@ -1,6 +1,6 @@
 use crate::{
     SolutionAccess, Solve,
-    pk::{DoseApplyingSolout, ScheduledDose, validate_unique_dose_times},
+    pk::{DoseApplyingSolout, ScheduledDose, ScheduledStateUpdate, validate_unique_dose_times},
     solve::SpeciesAccessError,
 };
 use derive_builder::Builder;
@@ -42,6 +42,16 @@ impl ScheduledDose for Dose {
 
     fn amount(&self) -> f64 {
         self.nmol
+    }
+}
+
+impl ScheduledStateUpdate<State<f64>> for Dose {
+    fn time(&self) -> f64 {
+        self.time
+    }
+
+    fn apply(&self, state: &mut State<f64>) {
+        state.plasma_tev += self.nmol;
     }
 }
 
@@ -203,8 +213,6 @@ impl std::fmt::Display for PyState {
         write!(f, "{}", self.inner)
     }
 }
-
-crate::impl_dose_target_field!(State<f64>, plasma_tev);
 
 impl SolutionAccess for Solution<f64, State<f64>> {
     fn brain_rma(&self) -> Result<Vec<f64>, SpeciesAccessError> {
@@ -501,21 +509,21 @@ impl Solve for Model {
         S: OrdinaryNumericalMethod<f64, Self::State> + Interpolation<f64, Self::State>,
     {
         let mut adjusted_init_state = init_state;
-        let mut start_dose_idx = 0;
-        let n_applied_doses = self
+        let scheduled_updates = self
             .doses
             .iter()
-            .filter(|dose| (dose.time - t0).abs() < 1e-10)
-            .map(|dose| adjusted_init_state.plasma_tev += dose.nmol)
-            .count();
-        start_dose_idx += n_applied_doses;
+            .filter_map(|dose| {
+                if (dose.time - t0).abs() < 1e-10 {
+                    adjusted_init_state.plasma_tev += dose.nmol;
+                    None
+                } else {
+                    Some(dose.clone())
+                }
+            })
+            .collect::<Vec<Dose>>();
 
-        let mut dosing_solout = DoseApplyingSolout::<State<f64>, Dose>::new(
-            self.doses[start_dose_idx..].to_vec(),
-            t0,
-            tf,
-            dt,
-        );
+        let mut dosing_solout =
+            DoseApplyingSolout::<State<f64>, Dose>::new(scheduled_updates, t0, tf, dt);
 
         let problem = ODEProblem::new(self, t0, tf, adjusted_init_state);
         let mut solution = problem.solout(&mut dosing_solout).solve(solver)?;

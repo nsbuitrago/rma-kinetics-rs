@@ -24,7 +24,7 @@
 
 use crate::{
     SolutionAccess, Solve,
-    pk::{DoseApplyingSolout, ScheduledDose, validate_unique_dose_times},
+    pk::{DoseApplyingSolout, ScheduledDose, ScheduledStateUpdate, validate_unique_dose_times},
     solve::SpeciesAccessError,
 };
 use derive_builder::Builder;
@@ -78,6 +78,16 @@ impl ScheduledDose for Dose {
 
     fn amount(&self) -> f64 {
         self.nmol
+    }
+}
+
+impl ScheduledStateUpdate<State<f64>> for Dose {
+    fn time(&self) -> f64 {
+        self.time
+    }
+
+    fn apply(&self, state: &mut State<f64>) {
+        state.peritoneal_cno += self.nmol;
     }
 }
 
@@ -475,8 +485,6 @@ impl CNOFields for State<f64> {
     }
 }
 
-crate::impl_dose_target_field!(State<f64>, peritoneal_cno);
-
 /// Trait for types that provide access to CNO PK doses.
 /// This enables models to access doses either directly (cno::Model)
 /// or indirectly through a nested CNO PK model (chemogenetic::Model).
@@ -538,9 +546,6 @@ pub struct Model {
 
 impl Model {
     /// Create a new CNO model builder.
-    // pub fn builder(doses: Vec<Dose>) -> ModelBuilder {
-    //     ModelBuilder::new(doses)
-    // }
     pub fn builder() -> ModelBuilder {
         ModelBuilder::default()
     }
@@ -619,21 +624,21 @@ impl Solve for Model {
     {
         // pre-apply any doses at t0 to the initial state
         let mut adjusted_init_state = init_state;
-        let mut start_dose_idx = 0;
-        let n_applied_doses = &self
+        let scheduled_updates = self
             .doses
             .iter()
-            .filter(|dose| (dose.time - t0).abs() < 1e-10)
-            .map(|dose| *adjusted_init_state.peritoneal_cno_mut() += dose.nmol)
-            .count();
-        start_dose_idx += n_applied_doses;
+            .filter_map(|dose| {
+                if (dose.time - t0).abs() < 1e-10 {
+                    adjusted_init_state.peritoneal_cno += dose.nmol;
+                    None
+                } else {
+                    Some(dose.clone())
+                }
+            })
+            .collect::<Vec<Dose>>();
 
-        let mut dosing_solout = DoseApplyingSolout::<State<f64>, Dose>::new(
-            self.doses[start_dose_idx..].to_vec(),
-            t0,
-            tf,
-            dt,
-        );
+        let mut dosing_solout =
+            DoseApplyingSolout::<State<f64>, Dose>::new(scheduled_updates, t0, tf, dt);
         let problem = ODEProblem::new(self, t0, tf, adjusted_init_state);
         let mut solution = problem.solout(&mut dosing_solout).solve(solver)?;
 

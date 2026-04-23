@@ -25,15 +25,24 @@
 //! Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+pub mod erasable;
+
 use crate::{
     SolutionAccess, Solve,
     models::{
         cno::{CNOFields, CNOPKAccess, Dose, Model as CNOModel},
         dox::{DoxFields, Model as DoxModel},
     },
-    pk::DoseApplyingSolout,
+    pk::{DoseApplyingSolout, ScheduledStateUpdate},
     solve::SpeciesAccessError,
 };
+
+pub trait ChemogeneticCoreFields: DoxFields + CNOFields {
+    fn tta(&self) -> f64;
+    fn dreadd(&self) -> f64;
+    fn tta_mut(&mut self) -> &mut f64;
+    fn dreadd_mut(&mut self) -> &mut f64;
+}
 use derive_builder::Builder;
 use differential_equations::{
     derive::State as StateTrait,
@@ -516,7 +525,33 @@ impl CNOFields for State<f64> {
     }
 }
 
-crate::impl_dose_target_field!(State<f64>, peritoneal_cno);
+impl ChemogeneticCoreFields for State<f64> {
+    fn tta(&self) -> f64 {
+        self.tta
+    }
+
+    fn dreadd(&self) -> f64 {
+        self.dreadd
+    }
+
+    fn tta_mut(&mut self) -> &mut f64 {
+        &mut self.tta
+    }
+
+    fn dreadd_mut(&mut self) -> &mut f64 {
+        &mut self.dreadd
+    }
+}
+
+impl ScheduledStateUpdate<State<f64>> for Dose {
+    fn time(&self) -> f64 {
+        self.time
+    }
+
+    fn apply(&self, state: &mut State<f64>) {
+        state.peritoneal_cno += self.nmol;
+    }
+}
 
 const DEFAULT_RMA_PROD: f64 = 0.428;
 const DEFAULT_LEAKY_RMA_PROD: f64 = 7.01e-3;
@@ -600,33 +635,91 @@ impl Model {
     pub fn builder() -> ModelBuilder {
         ModelBuilder::default()
     }
+
+    pub fn diff_with<S: ChemogeneticCoreFields>(&self, t: f64, y: &S, dydt: &mut S) {
+        diff_chemogenetic_core(
+            t,
+            y,
+            dydt,
+            &self.dox_pk_model,
+            &self.cno_pk_model,
+            self.tta_prod,
+            self.leaky_tta_prod,
+            self.tta_deg,
+            self.cno_ec50,
+            self.clz_ec50,
+            self.cno_cooperativity,
+            self.clz_cooperativity,
+            self.dreadd_prod,
+            self.dreadd_deg,
+            self.dreadd_ec50,
+            self.dreadd_cooperativity,
+        );
+    }
+}
+
+fn diff_chemogenetic_core<S: ChemogeneticCoreFields>(
+    t: f64,
+    y: &S,
+    dydt: &mut S,
+    dox_pk_model: &DoxModel,
+    cno_pk_model: &CNOModel,
+    tta_prod: f64,
+    leaky_tta_prod: f64,
+    tta_deg: f64,
+    cno_ec50: f64,
+    clz_ec50: f64,
+    cno_cooperativity: f64,
+    clz_cooperativity: f64,
+    dreadd_prod: f64,
+    dreadd_deg: f64,
+    dreadd_ec50: f64,
+    dreadd_cooperativity: f64,
+) {
+    dox_pk_model.diff_with(t, y, dydt);
+    cno_pk_model.diff_with(t, y, dydt);
+
+    let cno_ec50_hill =
+        (y.brain_cno() / cno_pk_model.cno_brain_vd / cno_ec50).powf(cno_cooperativity);
+    let clz_ec50_hill =
+        (y.brain_clz() / cno_pk_model.clz_brain_vd / clz_ec50).powf(clz_cooperativity);
+    let active_dreadd_frac = fractional_activation(cno_ec50_hill + clz_ec50_hill);
+    let dreadd_mod = (active_dreadd_frac * y.dreadd() / dreadd_ec50).powf(dreadd_cooperativity);
+
+    *dydt.tta_mut() = saturating_mix(leaky_tta_prod, tta_prod, dreadd_mod) - (tta_deg * y.tta());
+    *dydt.dreadd_mut() = dreadd_prod - (dreadd_deg * y.dreadd());
+}
+
+#[inline]
+fn saturating_mix(leaky: f64, induced: f64, activation: f64) -> f64 {
+    (leaky + (induced * activation)) / (1.0 + activation)
+}
+
+#[inline]
+#[cfg(feature = "py")]
+fn saturating_mix_derivative(leaky: f64, induced: f64, activation: f64) -> f64 {
+    (induced - leaky) / ((1.0 + activation) * (1.0 + activation))
+}
+
+#[inline]
+fn fractional_activation(total_signal: f64) -> f64 {
+    total_signal / (1.0 + total_signal)
+}
+
+#[inline]
+#[cfg(feature = "py")]
+fn fractional_activation_derivative(total_signal: f64) -> f64 {
+    1.0 / ((1.0 + total_signal) * (1.0 + total_signal))
 }
 
 impl ODE<f64, State<f64>> for Model {
     fn diff(&self, t: f64, y: &State<f64>, dydt: &mut State<f64>) {
-        self.dox_pk_model.diff_with(t, y, dydt); // dox dynamics
-        self.cno_pk_model.diff_with(t, y, dydt); // cno dynamics
-
-        // DREADD induced tTA expression
-        let cno_ec50_hill = (y.brain_cno / self.cno_pk_model.cno_brain_vd / self.cno_ec50)
-            .powf(self.cno_cooperativity);
-        let clz_ec50_hill = (y.brain_clz / self.cno_pk_model.clz_brain_vd / self.clz_ec50)
-            .powf(self.clz_cooperativity);
-        let active_dreadd_frac =
-            (cno_ec50_hill + clz_ec50_hill) / (1. + cno_ec50_hill + clz_ec50_hill);
-        let dreadd_mod =
-            (active_dreadd_frac * y.dreadd / self.dreadd_ec50).powf(self.dreadd_cooperativity);
-
-        dydt.tta = ((self.leaky_tta_prod + (self.tta_prod * dreadd_mod)) / (1. + dreadd_mod))
-            - (self.tta_deg * y.tta);
-
-        // constitutive DREADD expression
-        dydt.dreadd = self.dreadd_prod - (self.dreadd_deg * y.dreadd);
+        self.diff_with(t, y, dydt);
 
         // tet inducible RMA expression
         let active_tta = 1. / (1. + y.brain_dox / self.dox_tta_kd);
         let tta_hill = (active_tta * y.tta / self.tta_kd).powf(self.tta_cooperativity);
-        dydt.brain_rma = (self.leaky_rma_prod + (self.rma_prod * tta_hill)) / (1. + tta_hill)
+        dydt.brain_rma = saturating_mix(self.leaky_rma_prod, self.rma_prod, tta_hill)
             - (self.rma_bbb_transport * y.brain_rma);
 
         let brain_efflux = self.rma_bbb_transport * y.brain_rma;
@@ -648,22 +741,22 @@ impl Solve for Model {
         S: OrdinaryNumericalMethod<f64, Self::State> + Interpolation<f64, Self::State>,
     {
         let mut adjusted_init_state = init_state;
-        let mut start_dose_idx = 0;
-        let n_applied_doses = &self
+        let scheduled_updates = self
             .cno_pk_model
             .doses
             .iter()
-            .filter(|dose| (dose.time - t0).abs() < 1e-10)
-            .map(|dose| *adjusted_init_state.peritoneal_cno_mut() += dose.nmol)
-            .count();
-        start_dose_idx += n_applied_doses;
+            .filter_map(|dose| {
+                if (dose.time - t0).abs() < 1e-10 {
+                    adjusted_init_state.peritoneal_cno += dose.nmol;
+                    None
+                } else {
+                    Some(dose.clone())
+                }
+            })
+            .collect::<Vec<Dose>>();
 
-        let mut dosing_solout = DoseApplyingSolout::<State<f64>, Dose>::new(
-            self.get_doses()[start_dose_idx..].to_vec(),
-            t0,
-            tf,
-            dt,
-        );
+        let mut dosing_solout =
+            DoseApplyingSolout::<State<f64>, Dose>::new(scheduled_updates, t0, tf, dt);
         let problem = ODEProblem::new(self, t0, tf, adjusted_init_state);
         let mut solution = problem.solout(&mut dosing_solout).solve(solver)?;
 
@@ -883,9 +976,8 @@ fn rhs_and_jacobians(
     let (clz_ec50_hill, dclz_hill_dclz_ratio) = pow_with_grad(clz_ratio, p.clz_cooperativity);
 
     let q = cno_ec50_hill + clz_ec50_hill;
-    let one_plus_q = 1.0 + q;
-    let active_dreadd_frac = q / one_plus_q;
-    let dactive_frac_dq = 1.0 / (one_plus_q * one_plus_q);
+    let active_dreadd_frac = fractional_activation(q);
+    let dactive_frac_dq = fractional_activation_derivative(q);
 
     let dreadd_mod_base = if p.dreadd_ec50 > 0.0 {
         active_dreadd_frac * dreadd / p.dreadd_ec50
@@ -896,10 +988,9 @@ fn rhs_and_jacobians(
         pow_with_grad(dreadd_mod_base, p.dreadd_cooperativity);
 
     let one_plus_dreadd_mod = 1.0 + dreadd_mod;
-    let tta_expr = (p.leaky_tta_prod + (p.tta_prod * dreadd_mod)) / one_plus_dreadd_mod;
+    let tta_expr = saturating_mix(p.leaky_tta_prod, p.tta_prod, dreadd_mod);
 
-    let dtta_expr_ddreadd_mod =
-        (p.tta_prod - p.leaky_tta_prod) / (one_plus_dreadd_mod * one_plus_dreadd_mod);
+    let dtta_expr_ddreadd_mod = saturating_mix_derivative(p.leaky_tta_prod, p.tta_prod, dreadd_mod);
 
     let d_dreadd_mod_base_ddreadd = if p.dreadd_ec50 > 0.0 {
         active_dreadd_frac / p.dreadd_ec50
@@ -947,9 +1038,8 @@ fn rhs_and_jacobians(
     let (tta_hill, dtta_hill_dtta_hill_base) = pow_with_grad(tta_hill_base, p.tta_cooperativity);
 
     let one_plus_tta_hill = 1.0 + tta_hill;
-    let brain_expr = (p.leaky_rma_prod + (p.rma_prod * tta_hill)) / one_plus_tta_hill;
-    let dbrain_expr_dtta_hill =
-        (p.rma_prod - p.leaky_rma_prod) / (one_plus_tta_hill * one_plus_tta_hill);
+    let brain_expr = saturating_mix(p.leaky_rma_prod, p.rma_prod, tta_hill);
+    let dbrain_expr_dtta_hill = saturating_mix_derivative(p.leaky_rma_prod, p.rma_prod, tta_hill);
 
     let dtta_hill_base_dtta = if p.tta_kd > 0.0 {
         active_tta / p.tta_kd

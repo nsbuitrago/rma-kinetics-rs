@@ -38,22 +38,27 @@ project-includes = [
 
 [dependency-groups]
 tests = [
-    "pytest>=9.0.1",
+    "pytest>=9.0.3",
 ]
 docs = [
     "mkdocs-material>=9.7.0",
     "mkdocstrings[python]>=0.29.1",
 ]
 dev = [
+    "salib>=1.5.2",
+    "arviz>=0.23.4",
+    "pymc>=5.25.1",
+    "pytensor>=2.31.7",
+    "ruff>=0.15.7",
     "diffopt>=1.5.0",
     "marimo>=0.18.1",
     "matplotlib>=3.10.7",
     "mpi4py>=4.1.1",
     "polars>=1.35.2",
+    "pyarrow>=23.0.1",
     "pyrefly>=0.44.0",
     "scikit-learn>=1.7.2",
     "seaborn>=0.13.2",
-    "typer>=0.20.0",
 ]
 
 [tool.uv]

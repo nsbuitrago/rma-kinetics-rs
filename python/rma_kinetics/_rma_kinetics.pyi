@@ -1,6 +1,8 @@
 from numpy import float64
 from numpy.typing import NDArray
 
+models: object
+
 # ============================================================================
 # Solution class (returned from Model.solve())
 # ============================================================================
@@ -57,6 +59,10 @@ class Solution:
     @property
     def brain_clz(self) -> NDArray[float64]: ...
     """Get brain CLZ array (available for cno and chemogenetic models)."""
+
+    @property
+    def plasma_tev(self) -> NDArray[float64]: ...
+    """Get plasma TEV array (available for erasable models)."""
 
     def elapsed_time(self) -> float: ...
     """Returns the elapsed time in seconds."""

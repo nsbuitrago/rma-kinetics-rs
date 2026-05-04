@@ -16,5 +16,6 @@ pub mod chemogenetic;
 pub mod cno;
 pub mod constitutive;
 pub mod dox;
+pub mod erasable;
 pub mod oscillation;
 pub mod tetoff;

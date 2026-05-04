@@ -34,7 +34,9 @@
 //! println!("{:?}", solution.y);
 //! ```
 
+pub mod erasable;
 pub mod stochastic;
+
 pub use stochastic::StochasticModel;
 
 use derive_builder::Builder;

@@ -20,6 +20,7 @@ class Solver:
     max_scale: float = 10
 
 
+# Explicit Runge Kutta
 @dataclass
 class Dopri5(Solver):
     """Dormand-Prince 5(4) Explicit Runge-Kutta method."""
@@ -27,16 +28,53 @@ class Dopri5(Solver):
     solver_type: str = field(default="dopri5", init=False, repr=False)
 
 
-# Implicit Runge-Kutta solvers
-@dataclass
-class Kvaerno3(Solver):
-    """Kvaerno 3(2) method. L-stable, 3rd order. Uses 4 stages."""
-
-    solver_type: str = field(default="kvaerno3", init=False, repr=False)
-
-
 @dataclass
 class RungeKutta4(Solver):
     """Classical 4th order Runge-Kutta method."""
 
     solver_type: str = field(default="rk4", init=False, repr=False)
+
+
+@dataclass
+class RungeKutta45(Solver):
+    """Runge-Kutta-Fehlberg 4(5) method with error estimation"""
+
+    solvet_type: str = field(default="rkf45", init=False, repr=False)
+
+
+@dataclass
+class Euler(Solver):
+    """Explicit Euler (1st order, 1 stage)"""
+
+    solver_type: str = field(default="euler", init=False, repr=False)
+
+
+@dataclass
+class Midpoint(Solver):
+    """Explicit midpoint method (2nd order, 2 stages)"""
+
+    solver_type: str = field(default="midpoint", init=False, repr=False)
+
+
+@dataclass
+class Heun(Solver):
+    """Explicit Heun method (2nd order, 2 stages)"""
+
+    solver_type: str = field(default="heun", init=False, repr=False)
+
+
+@dataclass
+class Ralston(Solver):
+    """Explicit Ralston method (2nd order, 2 stages)"""
+
+    solver_type: str = field(default="ralston", init=False, repr=False)
+
+
+# Implicit Runge Kutta
+
+
+@dataclass
+class Kvaerno3(Solver):
+    """Kvaerno 3(2) method. L-stable, 3rd order. Uses 4 stages."""
+
+    solver_type: str = field(default="kvaerno3", init=False, repr=False)

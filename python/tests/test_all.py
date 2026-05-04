@@ -1,4 +1,7 @@
 # from pytest import assert_equal
+from typing import Any, cast
+
+import numpy as np
 from pytest import raises
 from rma_kinetics import models, solvers
 
@@ -52,12 +55,12 @@ def test_constitutive_solve():
 
 
 def test_stochastic_constitutive_model_creation():
-    models.constitutive.stochastic.Model()
-    models.constitutive.stochastic.Model(0.4, 0.5, 0.005, 0.4, 0.1)  # custom rates
+    models.constitutive.StochasticModel()
+    models.constitutive.StochasticModel(0.4, 0.5, 0.005, 0.4, 0.1)  # custom rates
 
 
 def test_stochastic_constitutive_solve():
-    model = models.constitutive.stochastic.Model()
+    model = models.constitutive.StochasticModel()
     state = models.constitutive.State()
 
     # this should error since we don't pass fixed step size to rk4 solver
@@ -67,7 +70,7 @@ def test_stochastic_constitutive_solve():
     ):
         model.solve(T0, T1, DT, state, rk4)
 
-    rk_fixed = solvers.RungeKutta4(dt0=1)
+    rk_fixed = solvers.Euler(dt0=1)
     solution = model.solve(T0, T1, DT, state, rk_fixed)
     expected_shape = (T1 + 1,)
     assert solution.ts.shape == expected_shape
@@ -197,7 +200,7 @@ def test_tetoff_solve():
 
 
 def test_cno_dose_creation():
-    dose = models.cno.Dose(0.03, 0)
+    dose = models.cno.CnoDose(0.03, 0)
     assert dose.mg == 0.03
     assert dose.time == 0
 
@@ -241,7 +244,7 @@ def test_cno_state_creation():
 
 
 def test_cno_model_creation():
-    dose = models.cno.Dose(0.03, 0)
+    dose = models.cno.CnoDose(0.03, 0)
     model = models.cno.Model([dose])
 
     assert len(model.doses) == 1
@@ -330,6 +333,64 @@ def test_chemogenetic_model_simulation():
     assert solution.brain_dox.shape == (T1 + 1,)
     assert solution.dreadd.shape == (T1 + 1,)
     assert solution.peritoneal_cno.shape == (T1 + 1,)
+
+
+def test_chemogenetic_erasable_interface():
+    chemogenetic_erasable = cast(Any, models.chemogenetic.erasable)
+
+    tev_dose = chemogenetic_erasable.TevDose(20.0, 4.0)
+    schedule = chemogenetic_erasable.create_tev_schedule(
+        20.0, 4.0, repeat=1, interval=24.0
+    )
+    assert tev_dose.nmol == 20.0
+    assert len(schedule) == 2
+
+    state = chemogenetic_erasable.State()
+    assert state.plasma_tev == 0
+
+    model = chemogenetic_erasable.Model()
+    assert model.tev_cut_rate > 0
+
+
+def test_chemogenetic_sensitivity_engine_shapes():
+    chemogenetic = cast(Any, models.chemogenetic)
+    dox_model = models.dox.Model()
+    cno_model = models.cno.Model([models.cno.CnoDose(0.03, 0)])
+
+    mouse_id = np.array([0, 0, 0, 1, 1, 1], dtype=np.int64)
+    obs_time = np.array([0.0, 24.0, 48.0, 0.0, 24.0, 48.0], dtype=np.float64)
+
+    engine = chemogenetic.SensitivityEngine(
+        mouse_id=mouse_id,
+        obs_time=obs_time,
+        n_mice=2,
+        dox_pk_model=dox_model,
+        cno_pk_model=cno_model,
+        plasma_dox_ss=1.0,
+        brain_dox_ss=0.2,
+        dt_sub=0.25,
+    )
+
+    mu, jac_prod, jac_leaky, jac_global = engine.predict_with_jacobian(
+        np.array([0.0, 0.0], dtype=np.float64),
+        np.array([0.0, 0.0], dtype=np.float64),
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+
+    assert mu.shape == (6,)
+    assert jac_prod.shape == (6, 2)
+    assert jac_leaky.shape == (6, 2)
+    assert jac_global.shape == (6, 11)
 
 
 def test_oscillation_model_creation():

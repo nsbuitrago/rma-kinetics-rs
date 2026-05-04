@@ -22,7 +22,7 @@ class Model:
         brain_transport: float = 0.2,
         plasma_transport: float = 1.0,
         plasma_vd: float = 0.21,
-        schedule: List[AccessPeriod] = ...,
+        schedule: List[AccessPeriod] = [],
     ) -> None: ...
     def solve(
         self, t0: float, tf: float, dt: float, init_state: State, solver: Solver

@@ -128,11 +128,64 @@ pub fn stochastic_py_solve_derive(input: TokenStream) -> TokenStream {
 
                 let mut problem = differential_equations::sde::SDEProblem::new(self, t0, tf, init_state);
                 let solution = match solver.solver_type.as_str() {
-                    "rk4" => {
-                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::rk4(solver.dt0);
+
+                    "euler" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::euler(solver.dt0)
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
                         problem.even(dt).solve(&mut solver_instance)?
                     },
-                    _ => panic!("Solver '{}' is not supported for stochastic models. Use 'rk4'.", solver.solver_type),
+                    "midpoint" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::midpoint(solver.dt0)
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    }
+                    "ralston" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::ralston(solver.dt0)
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    }
+                    "heun" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::heun(solver.dt0)
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    }
+                    _ => panic!("Solver '{}' is not supported for stochastic models. Use Euler, Midpoint, Heun, or Ralston.", solver.solver_type),
                 };
 
                 Ok(crate::solve::PySolution {
@@ -225,6 +278,90 @@ pub fn py_solve_derive(input: TokenStream) -> TokenStream {
                             .max_scale(solver.max_scale);
                         problem.even(dt).solve(&mut solver_instance)?
                     },
+                    "rk4" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::rk4(solver.dt0)
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    }
+                    "rkf45" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::rkf45()
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    }
+                    "euler" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::euler(solver.dt0)
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    },
+                    "midpoint" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::midpoint(solver.dt0)
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    }
+                    "ralston" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::ralston(solver.dt0)
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    }
+                    "heun" => {
+                        let mut solver_instance = differential_equations::methods::ExplicitRungeKutta::heun(solver.dt0)
+                            .rtol(solver.rtol)
+                            .atol(solver.atol)
+                            .h0(solver.dt0)
+                            .h_min(solver.min_dt)
+                            .h_max(solver.max_dt)
+                            .max_steps(solver.max_steps)
+                            .max_rejects(solver.max_rejected_steps)
+                            .safety_factor(solver.safety_factor)
+                            .min_scale(solver.min_scale)
+                            .max_scale(solver.max_scale);
+                        problem.even(dt).solve(&mut solver_instance)?
+                    }
                     _ => panic!("Solver not supported"),
                 };
 

@@ -265,6 +265,14 @@ impl SolutionAccess for Solution<f64, State<f64>> {
     fn max_brain_dox(&self) -> Result<(f64, f64), SpeciesAccessError> {
         Ok(crate::max_species!(self, brain_dox))
     }
+
+    fn plasma_tev(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
+    }
+
+    fn max_plasma_tev(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
+    }
 }
 
 #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]

@@ -134,7 +134,7 @@ def _(mu_star):
 def _(mu_conf, mu_star, np, pl, sigma):
     # sens at selected time points (summary)
     timepoints = [336, 337, 1008, 1009]
-    selected_params = ["Production","Degradation"]
+    selected_params = ["Production", "Degradation"]
     selected_idx = [0, 2]
 
     _time = []
@@ -183,7 +183,7 @@ def _(data_dir, mu_df, np, os, pl, plt, sb, selected_params):
     # sensitivity summary around TEV dose times
     time_pairs = [
         (336, 337, "1 week"),
-        (1008, 1009, "2 week"),
+        (1008, 1009, "3 week"),
     ]
     x = np.arange(len(selected_params))
     width = 0.36
@@ -213,7 +213,7 @@ def _(data_dir, mu_df, np, os, pl, plt, sb, selected_params):
             width,
             label="-Tev",
             yerr=e_minus,
-            color='darkgrey',
+            color="darkgrey",
             alpha=0.5,
         )
         ax.bar(
@@ -227,7 +227,7 @@ def _(data_dir, mu_df, np, os, pl, plt, sb, selected_params):
 
         ax.set_xticks(x)
         ax.set_xticklabels(selected_params)
-        #ax.set_title(f"{subtitle}")
+        # ax.set_title(f"{subtitle}")
         ax.set_ylabel("Relative Importance")
         ax.legend(frameon=False, loc="upper right")
 
@@ -262,11 +262,13 @@ def _(data_dir, mu_df, os, pl, plt, selected_params, time_pairs, width, x):
         _plus = mu_df.filter(pl.col("time") == _t_plus)
 
         _y_minus = [
-            _minus.filter(pl.col("params") == p)["sigma_norm"][0] for p in selected_params
+            _minus.filter(pl.col("params") == p)["sigma_norm"][0]
+            for p in selected_params
         ]
-    
+
         _y_plus = [
-            _plus.filter(pl.col("params") == p)["sigma_norm"][0] for p in selected_params
+            _plus.filter(pl.col("params") == p)["sigma_norm"][0]
+            for p in selected_params
         ]
 
         _ax.bar(
@@ -274,7 +276,7 @@ def _(data_dir, mu_df, os, pl, plt, selected_params, time_pairs, width, x):
             _y_minus,
             width,
             label="-Tev",
-            color='darkgrey',
+            color="darkgrey",
             alpha=0.5,
         )
         _ax.bar(
@@ -287,13 +289,15 @@ def _(data_dir, mu_df, os, pl, plt, selected_params, time_pairs, width, x):
 
         _ax.set_xticks(x)
         _ax.set_xticklabels(selected_params)
-        #ax.set_title(f"{subtitle}")
+        # ax.set_title(f"{subtitle}")
         _ax.set_ylabel("Relative Nonlinearity or Interaction")
-        #_ax.legend(frameon=False)
+        # _ax.legend(frameon=False)
 
         plt.tight_layout()
         plt.savefig(
-            os.path.join(data_dir, f"norm_interaction_{_subtitle.replace(' ', '_')}.svg")
+            os.path.join(
+                data_dir, f"norm_interaction_{_subtitle.replace(' ', '_')}.svg"
+            )
         )
         plt.show()
     return

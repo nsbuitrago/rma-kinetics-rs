@@ -159,7 +159,7 @@ def _(mouse_id, n_mice, n_obs, obs_plasma_rma, obs_time, tf):
                 pred[mask] = solution.plasma_rma[obs_time[mask]]
             except:
                 continue
-            
+
 
         return pred
 
@@ -213,6 +213,7 @@ def _(mouse_id, n_mice, n_obs, obs_plasma_rma, obs_time, tf):
             random_seed=42,
             return_inferencedata=True,
         )
+
     return idata, ppc
 
 
@@ -321,13 +322,13 @@ def _(idata, n_mice):
             mouse_i_plasma_rma = []
             bbb = np.exp(log_bbb[i])
             deg = np.exp(log_deg[i])
-        
+
             for mouse in range(n_mice):
                 prod = np.exp(log_prod[i, mouse])
                 model = Model(prod, bbb, deg)
                 solution = model.solve(0, 504, 1, State(), Dopri5())
                 mouse_i_plasma_rma.append(solution.plasma_rma)
-            
+
             trajectories.append(np.mean(mouse_i_plasma_rma, axis=0))
 
         trajectories = np.array(trajectories)
@@ -335,7 +336,7 @@ def _(idata, n_mice):
         hdi = az.hdi(trajectories, hdi_prob=0.94)
 
         return mean_plasma_rma, hdi
-        
+
     pop_plasma_rma, pop_plasma_rma_hdi = plasma_rma_fit(log_prod_samples, log_bbb_samples, log_deg_samples, n_mice)    
     return pop_plasma_rma, pop_plasma_rma_hdi
 

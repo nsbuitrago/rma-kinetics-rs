@@ -1,18 +1,23 @@
-"""
-Chemogenetic RMA expression model.
-"""
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from .. import Solution
-    from ..solvers import Solver
-    from .cno import Model as CNOModel
-    from .dox import Model as DoxModel
+    from ... import Solution
+    from ...solvers import Solver
+    from ..cno import Model as CNOModel
+    from ..dox import Model as DoxModel
+
+class TevDose:
+    def __init__(self, nmol: float, time: float) -> None: ...
+    @property
+    def nmol(self) -> float: ...
+    @nmol.setter
+    def nmol(self, value: float) -> None: ...
+    @property
+    def time(self) -> float: ...
+    @time.setter
+    def time(self, value: float) -> None: ...
 
 class Model:
-    """Chemogenetic RMA expression model."""
-
     def __init__(
         self,
         rma_prod: float = 0.428,
@@ -35,14 +40,16 @@ class Model:
         dreadd_deg: float = 1.0,
         dreadd_ec50: float = 6.79,
         dreadd_cooperativity: float = 1.0,
+        tev_doses: list[TevDose] = ...,
+        tev_plasma_vd: float = 1.0,
+        tev_deg: float = 0.1,
+        tev_cut_rate: float = 0.01,
     ) -> None: ...
     def solve(
         self, t0: float, tf: float, dt: float, init_state: State, solver: Solver
     ) -> Solution: ...
 
 class State:
-    """Chemogenetic RMA expression model state."""
-
     def __init__(
         self,
         brain_rma: float = 0.0,
@@ -56,6 +63,7 @@ class State:
         brain_cno: float = 0.0,
         plasma_clz: float = 0.0,
         brain_clz: float = 0.0,
+        plasma_tev: float = 0.0,
     ) -> None: ...
     @property
     def brain_rma(self) -> float: ...
@@ -101,3 +109,14 @@ class State:
     def brain_clz(self) -> float: ...
     @brain_clz.setter
     def brain_clz(self, value: float) -> None: ...
+    @property
+    def plasma_tev(self) -> float: ...
+    @plasma_tev.setter
+    def plasma_tev(self, value: float) -> None: ...
+
+def create_tev_schedule(
+    nmol: float,
+    start_time: float,
+    repeat: Optional[int] = None,
+    interval: Optional[float] = None,
+) -> list[TevDose]: ...

@@ -35,7 +35,6 @@
 //! ```
 
 pub mod erasable;
-pub mod inference;
 pub mod stochastic;
 
 pub use stochastic::StochasticModel;
@@ -57,7 +56,7 @@ use crate::solve::ToDataFrame;
 use polars::{error::PolarsError, frame::DataFrame};
 
 #[cfg(feature = "py")]
-use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
 
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;
@@ -236,46 +235,6 @@ impl Model {
             Ok(solution) => Ok(solution),
             Err(e) => Err(PyValueError::new_err(format!("Failed to solve: {:?}", e))),
         }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    #[pyo3(
-        name = "solve_with_adjoint",
-        signature = (
-            t0,
-            tf,
-            dt,
-            init_state,
-            obs_time,
-            obs_plasma_rma,
-            forward_solver,
-            adjoint_solver,
-            obs_weight=None
-        )
-    )]
-    fn py_solve_with_adjoint(
-        &self,
-        t0: f64,
-        tf: f64,
-        dt: f64,
-        init_state: PyState,
-        obs_time: Vec<f64>,
-        obs_plasma_rma: Vec<f64>,
-        forward_solver: crate::solve::PySolver,
-        adjoint_solver: crate::solve::PySolver,
-        obs_weight: Option<Vec<f64>>,
-    ) -> PyResult<(f64, f64, f64, f64, PyState)> {
-        self.py_solve_with_adjoint_impl(
-            t0,
-            tf,
-            dt,
-            init_state,
-            obs_time,
-            obs_plasma_rma,
-            forward_solver,
-            adjoint_solver,
-            obs_weight,
-        )
     }
 }
 

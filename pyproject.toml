@@ -59,7 +59,6 @@ dev = [
     "pyrefly>=0.44.0",
     "scikit-learn>=1.7.2",
     "seaborn>=0.13.2",
-    "typer>=0.20.0",
 ]
 
 [tool.uv]

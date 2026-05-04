@@ -80,13 +80,22 @@
               }
               // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
                 UV_PYTHON_DOWNLOADS = "never";
-                UV_PYTHON_PREFERENCE = "only-system";
-                UV_PYTHON = "${pkgs.python313}/bin/python3.13";
                 LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
                   pkgs.stdenv.cc.cc.lib
                   pkgs.zlib
                 ];
               };
+
+            shellHook = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+              if [ -x "$PWD/.venv/bin/python" ]; then
+                export UV_PYTHON="$PWD/.venv/bin/python"
+                export PYO3_PYTHON="$PWD/.venv/bin/python"
+                export PATH="$PWD/.venv/bin:$PATH"
+              else
+                export UV_PYTHON="${pkgs.python313}/bin/python3.13"
+                export PYO3_PYTHON="${pkgs.python313}/bin/python3.13"
+              fi
+            '';
           };
         }
       );

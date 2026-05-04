@@ -34,7 +34,6 @@
 //! The returned solution is the [`Solution`](https://docs.rs/differential-equations/latest/differential_equations/solution/struct.Solution.html)
 //! struct from the `differential_equations` crate, where the `y` field is the corresponding `State` struct.
 
-pub mod inference;
 pub mod models;
 pub mod pk;
 mod solve;
@@ -51,8 +50,6 @@ use pyo3::prelude::*;
 #[cfg(feature = "py")]
 #[pymodule]
 mod _rma_kinetics {
-    #[pymodule_export]
-    use super::py_inference;
     #[pymodule_export]
     use super::py_models;
     #[pymodule_export]
@@ -77,28 +74,6 @@ mod py_models {
     use super::py_oscillation;
     #[pymodule_export]
     use super::py_tetoff;
-}
-
-/// Inference Python module
-#[cfg(feature = "py")]
-#[pymodule(submodule, name = "inference")]
-mod py_inference {
-    #[pymodule_export]
-    use super::py_inference_constitutive;
-}
-
-/// Constitutive inference Python module
-#[cfg(feature = "py")]
-#[pymodule(submodule, name = "constitutive")]
-mod py_inference_constitutive {
-    #[pymodule_export]
-    use super::models::constitutive::inference::PyConstitutiveInferenceData;
-    #[pymodule_export]
-    use super::models::constitutive::inference::PyConstitutivePosterior;
-    #[pymodule_export]
-    use super::models::constitutive::inference::PyConstitutiveSampleStats;
-    #[pymodule_export]
-    use super::models::constitutive::inference::py_sample_constitutive;
 }
 
 /// Constitutive model Python module

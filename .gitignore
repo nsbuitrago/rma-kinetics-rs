@@ -58,6 +58,7 @@ coverage.xml
 *.pot
 
 .DS_Store
+._.DS_Store
 
 # Sphinx documentation
 docs/_build/
@@ -70,6 +71,9 @@ docs/_build/
 
 # Pyenv
 .python-version
+
+# ruff
+.ruff_cache
 
 # Marimo
 __marimo__

@@ -287,7 +287,7 @@ dependencies = [
 [[package]]
 name = "differential-equations"
 version = "0.5.3"
-source = "git+https://github.com/Ryan-D-Gast/differential-equations?branch=master#923a498976e6e694c564dccd66f2f15ad70d6c5d"
+source = "git+https://github.com/nsbuitrago/differential-equations?branch=master#923a498976e6e694c564dccd66f2f15ad70d6c5d"
 dependencies = [
  "differential-equations-derive",
  "nalgebra",

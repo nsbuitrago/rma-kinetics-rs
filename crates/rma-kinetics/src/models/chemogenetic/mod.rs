@@ -26,16 +26,21 @@
 //! ```
 
 pub mod erasable;
+#[cfg(feature = "py")]
+pub mod inference;
 
 use crate::{
-    SolutionAccess, Solve,
     models::{
         cno::{CNOFields, CNOPKAccess, CnoDose, Model as CNOModel},
         dox::{DoxFields, Model as DoxModel},
     },
     pk::DoseApplyingSolout,
     solve::SpeciesAccessError,
+    SolutionAccess, Solve,
 };
+
+#[cfg(feature = "py")]
+pub use inference::AdjointEngine;
 
 pub trait ChemogeneticCoreFields: DoxFields + CNOFields {
     fn tta(&self) -> f64;
@@ -48,12 +53,12 @@ use differential_equations::{
     derive::State as StateTrait,
     error::Error,
     ivp::IVP,
-    ode::{ODE, OrdinaryNumericalMethod},
+    ode::{OrdinaryNumericalMethod, ODE},
     prelude::{Interpolation, Solution},
 };
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
 
 #[cfg(feature = "py")]
 use differential_equations::methods::DiagonallyImplicitRungeKutta;

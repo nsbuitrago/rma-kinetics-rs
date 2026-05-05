@@ -1,7 +1,7 @@
 use crate::pk::{ScheduledDose, ScheduledStateUpdate};
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, pyclass, pyfunction, pymethods};
+use pyo3::{pyclass, pyfunction, pymethods, PyResult};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};

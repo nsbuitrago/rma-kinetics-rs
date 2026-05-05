@@ -18,7 +18,7 @@ def _():
     import seaborn as sb
     from pytensor.graph.basic import Apply
     from pytensor.graph.op import Op
-    from rma_kinetics.models.chemogenetic import Model, SensitivityEngine, State
+    from rma_kinetics.models.chemogenetic import AdjointEngine, Model, State
     from rma_kinetics.models.cno import Dose
     from rma_kinetics.models.cno import Model as CnoModel
     from rma_kinetics.models.dox import AccessPeriod
@@ -37,7 +37,7 @@ def _():
         Kvaerno3,
         Model,
         Op,
-        SensitivityEngine,
+        AdjointEngine,
         State,
         az,
         np,
@@ -192,7 +192,7 @@ def _(
     Dose,
     DoxModel,
     Op,
-    SensitivityEngine,
+    AdjointEngine,
     mouse_id,
     n_mice,
     n_obs,
@@ -210,7 +210,7 @@ def _(
     sim_obs_time = obs_time.astype(float) + pre_injection_hours
 
     cno_pk_model = CnoModel(doses=[Dose(0.03, pre_injection_hours)])
-    engine = SensitivityEngine(
+    engine = AdjointEngine(
         mouse_id=mouse_id,
         obs_time=sim_obs_time,
         n_mice=n_mice,
@@ -244,8 +244,8 @@ def _(
     log_dreadd_prod_upper = np.log(200.0)
 
     class ChemogeneticVJPOp(Op):
-        def __init__(self, sensitivity_engine):
-            self.engine = sensitivity_engine
+        def __init__(self, adjoint_engine):
+            self.engine = adjoint_engine
 
         def make_node(
             self,
@@ -334,7 +334,8 @@ def _(
 
             g = np.asarray(g, dtype=float)
             try:
-                _, jac_prod, jac_leaky, jac_global = self.engine.predict_with_jacobian(
+                d_prod, d_leaky, d_global = self.engine.vjp(
+                    g,
                     np.asarray(log_prod_mouse, dtype=float),
                     np.asarray(log_leaky_prod_mouse, dtype=float),
                     float(log_bbb),
@@ -350,16 +351,12 @@ def _(
                     float(log_dreadd_ec50),
                 )
 
-                jac_prod = np.asarray(jac_prod, dtype=float)
-                jac_leaky = np.asarray(jac_leaky, dtype=float)
-                jac_global = np.asarray(jac_global, dtype=float)
+                outputs[0][0] = np.asarray(d_prod, dtype=float)
+                outputs[1][0] = np.asarray(d_leaky, dtype=float)
 
-                outputs[0][0] = np.asarray(jac_prod.T @ g, dtype=float)
-                outputs[1][0] = np.asarray(jac_leaky.T @ g, dtype=float)
-
-                global_vjp = jac_global.T @ g
-                for i in range(global_vjp.size):
-                    outputs[2 + i][0] = np.asarray(global_vjp[i], dtype=float)
+                d_global = np.asarray(d_global, dtype=float)
+                for i in range(d_global.size):
+                    outputs[2 + i][0] = np.asarray(d_global[i], dtype=float)
             except Exception:
                 outputs[0][0] = np.zeros_like(np.asarray(log_prod_mouse, dtype=float))
                 outputs[1][0] = np.zeros_like(
@@ -369,9 +366,9 @@ def _(
                     outputs[2 + i][0] = np.asarray(0.0, dtype=float)
 
     class ChemogeneticExpectationOp(Op):
-        def __init__(self, sensitivity_engine):
-            self.engine = sensitivity_engine
-            self._vjp_op = ChemogeneticVJPOp(sensitivity_engine)
+        def __init__(self, adjoint_engine):
+            self.engine = adjoint_engine
+            self._vjp_op = ChemogeneticVJPOp(adjoint_engine)
 
         def make_node(
             self,
@@ -441,7 +438,7 @@ def _(
             ) = inputs
 
             try:
-                mu, _, _, _ = self.engine.predict_with_jacobian(
+                mu = self.engine.predict(
                     np.asarray(log_prod_mouse, dtype=float),
                     np.asarray(log_leaky_prod_mouse, dtype=float),
                     float(log_bbb),
@@ -758,7 +755,6 @@ def _(
         brain_cno_traj = []
         brain_clz_traj = []
 
-
         for i in range(total_draws):
             bbb = np.exp(log_bbb[i])
             deg = np.exp(log_deg[i])
@@ -771,8 +767,10 @@ def _(
             clz_ec50 = np.exp(log_clz_ec50[i])
             dreadd_prod = np.exp(log_dreadd_prod[i])
             dreadd_ec50 = np.exp(log_dreadd_ec50[i])
-        
-            state = State(brain_dox=brain_dox_ss, plasma_dox=plasma_dox_ss, dreadd=dreadd_prod)
+
+            state = State(
+                brain_dox=brain_dox_ss, plasma_dox=plasma_dox_ss, dreadd=dreadd_prod
+            )
 
             for mouse in range(n_mice):
                 prod = np.exp(log_prod[i, mouse])
@@ -965,10 +963,10 @@ def _():
 @app.cell
 def _(plt, pop_plasma_rma):
     plt.plot(pop_plasma_rma, label="plasma_rma")
-    #plt.plot(pop_tta, label="tta")
-    #plt.plot(pop_brain_dox, label="brain_dox")
-    #plt.plot(pop_brain_cno, label="brain_cno")
-    #plt.plot(pop_brain_clz, label="brain_clz")
+    # plt.plot(pop_tta, label="tta")
+    # plt.plot(pop_brain_dox, label="brain_dox")
+    # plt.plot(pop_brain_cno, label="brain_cno")
+    # plt.plot(pop_brain_clz, label="brain_clz")
     plt.legend()
     return
 

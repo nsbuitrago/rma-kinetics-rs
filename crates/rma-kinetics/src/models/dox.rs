@@ -41,7 +41,7 @@
 //! ```
 //!
 
-use crate::{SolutionAccess, pk::Error, solve::SpeciesAccessError};
+use crate::{pk::Error, solve::SpeciesAccessError, SolutionAccess};
 use differential_equations::{
     derive::State as StateTrait,
     ode::ODE,
@@ -51,7 +51,7 @@ use rma_kinetics_derive::Solve;
 use std::ops::RangeInclusive;
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, exceptions::PyValueError, pyclass, pyfunction, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pyfunction, pymethods, PyResult};
 
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;

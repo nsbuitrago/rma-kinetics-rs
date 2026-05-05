@@ -393,6 +393,150 @@ def test_chemogenetic_sensitivity_engine_shapes():
     assert jac_global.shape == (6, 11)
 
 
+def test_chemogenetic_adjoint_engine_shapes_and_soft_fail():
+    chemogenetic = cast(Any, models.chemogenetic)
+    dox_model = models.dox.Model()
+    cno_model = models.cno.Model([models.cno.CnoDose(0.03, 0)])
+
+    mouse_id = np.array([0, 0, 0, 1, 1, 1], dtype=np.int64)
+    obs_time = np.array([0.0, 24.0, 48.0, 0.0, 24.0, 48.0], dtype=np.float64)
+
+    engine = chemogenetic.AdjointEngine(
+        mouse_id=mouse_id,
+        obs_time=obs_time,
+        n_mice=2,
+        dox_pk_model=dox_model,
+        cno_pk_model=cno_model,
+        plasma_dox_ss=1.0,
+        brain_dox_ss=0.2,
+        dt_sub=0.25,
+    )
+
+    mu = engine.predict(
+        np.array([0.0, 0.0], dtype=np.float64),
+        np.array([0.0, 0.0], dtype=np.float64),
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+
+    d_prod, d_leaky, d_global = engine.vjp(
+        np.ones(6, dtype=np.float64),
+        np.array([0.0, 0.0], dtype=np.float64),
+        np.array([0.0, 0.0], dtype=np.float64),
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+
+    assert mu.shape == (6,)
+    assert d_prod.shape == (2,)
+    assert d_leaky.shape == (2,)
+    assert d_global.shape == (11,)
+
+    mu_bad = engine.predict(
+        np.array([np.nan, np.nan], dtype=np.float64),
+        np.array([0.0, 0.0], dtype=np.float64),
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+    assert np.all(np.isfinite(mu_bad))
+
+    d_prod_bad, d_leaky_bad, d_global_bad = engine.vjp(
+        np.ones(6, dtype=np.float64),
+        np.array([np.nan, np.nan], dtype=np.float64),
+        np.array([0.0, 0.0], dtype=np.float64),
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+
+    assert np.all(d_prod_bad == 0.0)
+    assert np.all(d_leaky_bad == 0.0)
+    assert np.all(d_global_bad == 0.0)
+
+
+def test_chemogenetic_adjoint_engine_vjp_matches_jacobian_product():
+    chemogenetic = cast(Any, models.chemogenetic)
+    dox_model = models.dox.Model()
+    cno_model = models.cno.Model([models.cno.CnoDose(0.03, 0)])
+
+    mouse_id = np.array([0, 0, 1, 1], dtype=np.int64)
+    obs_time = np.array([0.0, 24.0, 0.0, 24.0], dtype=np.float64)
+
+    sens = chemogenetic.SensitivityEngine(
+        mouse_id=mouse_id,
+        obs_time=obs_time,
+        n_mice=2,
+        dox_pk_model=dox_model,
+        cno_pk_model=cno_model,
+        plasma_dox_ss=1.0,
+        brain_dox_ss=0.2,
+        dt_sub=0.25,
+    )
+
+    adj = chemogenetic.AdjointEngine(
+        mouse_id=mouse_id,
+        obs_time=obs_time,
+        n_mice=2,
+        dox_pk_model=dox_model,
+        cno_pk_model=cno_model,
+        plasma_dox_ss=1.0,
+        brain_dox_ss=0.2,
+        dt_sub=0.25,
+    )
+
+    log_prod = np.array([0.1, -0.1], dtype=np.float64)
+    log_leaky = np.array([-0.2, -0.3], dtype=np.float64)
+    globals_ = (0.0, -0.1, 0.2, -0.4, -0.2, 0.1, 0.0, 0.05, -0.05, 0.1, -0.1)
+
+    _, jac_prod, jac_leaky, jac_global = sens.predict_with_jacobian(
+        log_prod,
+        log_leaky,
+        *globals_,
+    )
+
+    g = np.array([0.5, -0.2, 0.1, 0.4], dtype=np.float64)
+    d_prod, d_leaky, d_global = adj.vjp(g, log_prod, log_leaky, *globals_)
+
+    assert np.allclose(d_prod, np.asarray(jac_prod).T @ g, rtol=1e-6, atol=1e-8)
+    assert np.allclose(d_leaky, np.asarray(jac_leaky).T @ g, rtol=1e-6, atol=1e-8)
+    assert np.allclose(d_global, np.asarray(jac_global).T @ g, rtol=1e-6, atol=1e-8)
+
+
 def test_oscillation_model_creation():
     models.oscillation.Model()  # default model
     models.oscillation.Model(0.4, 0.1, 0.5, 0.005)  # custom rates

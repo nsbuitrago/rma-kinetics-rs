@@ -19,6 +19,7 @@ thiserror = "2.0.17"
 derive_builder = "0.20.2"
 rand = "0.9.3"
 rand_distr = "0.5.1"
+num-dual = "0.11"
 serde = { version = "1.0.228", features = ["derive"] }
 rma-kinetics = { version = "0.1.0", path = "crates/rma-kinetics" }
 rma-kinetics-derive = { version = "0.1.0", path = "crates/rma-kinetics-derive" }

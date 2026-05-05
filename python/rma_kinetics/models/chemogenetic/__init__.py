@@ -7,6 +7,7 @@ _models = cast(Any, _models)
 
 Model = _models.chemogenetic.Model
 SensitivityEngine = _models.chemogenetic.SensitivityEngine
+AdjointEngine = _models.chemogenetic.AdjointEngine
 State = _models.chemogenetic.State
 
-__all__ = ["Model", "SensitivityEngine", "State", "erasable"]
+__all__ = ["Model", "SensitivityEngine", "AdjointEngine", "State", "erasable"]

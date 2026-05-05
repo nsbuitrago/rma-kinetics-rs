@@ -125,13 +125,13 @@ mod py_tetoff {
 #[pymodule(submodule, name = "dox")]
 mod py_dox {
     #[pymodule_export]
+    use super::models::dox::create_dox_schedule;
+    #[pymodule_export]
     use super::models::dox::AccessPeriod;
     #[pymodule_export]
     use super::models::dox::Model;
     #[pymodule_export]
     use super::models::dox::PyState;
-    #[pymodule_export]
-    use super::models::dox::create_dox_schedule;
 }
 
 // CNO model python module
@@ -139,13 +139,13 @@ mod py_dox {
 #[pymodule(submodule, name = "cno")]
 mod py_cno {
     #[pymodule_export]
+    use super::models::cno::create_cno_schedule;
+    #[pymodule_export]
     use super::models::cno::CnoDose;
     #[pymodule_export]
     use super::models::cno::Model;
     #[pymodule_export]
     use super::models::cno::PyState;
-    #[pymodule_export]
-    use super::models::cno::create_cno_schedule;
 }
 
 // Shared erasable helpers python module
@@ -153,15 +153,17 @@ mod py_cno {
 #[pymodule(submodule, name = "erasable")]
 mod py_erasable {
     #[pymodule_export]
-    use super::models::erasable::TevDose;
-    #[pymodule_export]
     use super::models::erasable::create_tev_schedule;
+    #[pymodule_export]
+    use super::models::erasable::TevDose;
 }
 
 // Chemogenetic model python module
 #[cfg(feature = "py")]
 #[pymodule(submodule, name = "chemogenetic")]
 mod py_chemogenetic {
+    #[pymodule_export]
+    use super::models::chemogenetic::AdjointEngine;
     #[pymodule_export]
     use super::models::chemogenetic::Model;
     #[pymodule_export]

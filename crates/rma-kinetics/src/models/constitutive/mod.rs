@@ -56,7 +56,7 @@ use crate::solve::ToDataFrame;
 use polars::{error::PolarsError, frame::DataFrame};
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
 
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;

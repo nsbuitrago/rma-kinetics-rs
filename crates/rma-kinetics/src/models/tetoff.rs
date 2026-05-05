@@ -23,16 +23,16 @@
 //! assert!(solution.is_ok());
 //!
 use crate::{
-    SolutionAccess,
     models::dox::{DoxFields, Model as DoxModel},
     solve::SpeciesAccessError,
+    SolutionAccess,
 };
 use derive_builder::Builder;
 use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Solution};
 use rma_kinetics_derive::Solve;
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
 
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;

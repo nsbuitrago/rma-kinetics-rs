@@ -23,21 +23,21 @@
 //! ```
 
 use crate::{
-    SolutionAccess, Solve,
-    pk::{DoseApplyingSolout, ScheduledDose, ScheduledStateUpdate, validate_unique_dose_times},
+    pk::{validate_unique_dose_times, DoseApplyingSolout, ScheduledDose, ScheduledStateUpdate},
     solve::SpeciesAccessError,
+    SolutionAccess, Solve,
 };
 use derive_builder::Builder;
 use differential_equations::{
     derive::State as StateTrait,
     error::Error,
     ivp::IVP,
-    ode::{ODE, OrdinaryNumericalMethod},
+    ode::{OrdinaryNumericalMethod, ODE},
     prelude::{Interpolation, Solution},
 };
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, exceptions::PyValueError, pyclass, pyfunction, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pyfunction, pymethods, PyResult};
 
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};

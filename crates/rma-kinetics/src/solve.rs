@@ -1,5 +1,5 @@
 #[cfg(feature = "py")]
-use pyo3::{Bound, FromPyObject, PyResult, Python, exceptions::PyValueError, pyclass, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pymethods, Bound, FromPyObject, PyResult, Python};
 
 #[cfg(feature = "py")]
 use numpy::PyArray1;

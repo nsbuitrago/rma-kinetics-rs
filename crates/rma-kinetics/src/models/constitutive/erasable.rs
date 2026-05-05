@@ -1,23 +1,23 @@
 use crate::{
-    SolutionAccess, Solve,
     models::erasable::{
-        DEFAULT_TEV_CUT_RATE, DEFAULT_TEV_DEG, DEFAULT_TEV_DOSE_NMOL, DEFAULT_TEV_DOSE_TIME,
-        DEFAULT_TEV_PLASMA_VD, TevFields,
+        TevFields, DEFAULT_TEV_CUT_RATE, DEFAULT_TEV_DEG, DEFAULT_TEV_DOSE_NMOL,
+        DEFAULT_TEV_DOSE_TIME, DEFAULT_TEV_PLASMA_VD,
     },
-    pk::{DoseApplyingSolout, validate_unique_dose_times},
+    pk::{validate_unique_dose_times, DoseApplyingSolout},
     solve::SpeciesAccessError,
+    SolutionAccess, Solve,
 };
 use derive_builder::Builder;
 use differential_equations::{
     derive::State as StateTrait,
     error::Error,
     ivp::IVP,
-    ode::{ODE, OrdinaryNumericalMethod},
+    ode::{OrdinaryNumericalMethod, ODE},
     prelude::{Interpolation, Solution},
 };
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
 
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};
@@ -25,7 +25,7 @@ use crate::solve::{InnerSolution, PySolution, PySolver};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-pub use crate::models::erasable::{TevDose, create_tev_schedule};
+pub use crate::models::erasable::{create_tev_schedule, TevDose};
 
 /// Constitutive erasable model state.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

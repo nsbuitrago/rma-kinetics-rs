@@ -18,6 +18,7 @@ thiserror = { workspace = true }
 derive_builder = { workspace = true }
 rand = { workspace = true }
 rand_distr = { workspace = true }
+num-dual = { workspace = true }
 rma-kinetics-derive = { workspace = true }
 serde = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }

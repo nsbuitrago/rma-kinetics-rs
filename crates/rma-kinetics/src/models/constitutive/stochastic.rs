@@ -1,11 +1,11 @@
 use derive_builder::Builder;
 use differential_equations::sde::SDE;
-use rand::{SeedableRng, rngs::StdRng};
+use rand::{rngs::StdRng, SeedableRng};
 use rand_distr::{Distribution as _, Normal};
 use rma_kinetics_derive::StochasticSolve;
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
 
 #[cfg(feature = "py")]
 use rma_kinetics_derive::StochasticPySolve;

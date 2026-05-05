@@ -3,12 +3,12 @@ use differential_equations::{
     derive::State as StateTrait,
     error::Error,
     ivp::IVP,
-    ode::{ODE, OrdinaryNumericalMethod},
+    ode::{OrdinaryNumericalMethod, ODE},
     prelude::{Interpolation, Solution},
 };
 
 #[cfg(feature = "py")]
-use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
+use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
 
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};
@@ -22,19 +22,19 @@ use crate::ToDataFrame;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::{ChemogeneticCoreFields, diff_chemogenetic_core, saturating_mix};
+use super::{diff_chemogenetic_core, saturating_mix, ChemogeneticCoreFields};
 use crate::{
-    SolutionAccess, Solve,
     models::{
         cno::{CNOFields, CNOPKAccess, CnoDose, Model as CNOModel},
         dox::{DoxFields, Model as DoxModel},
         erasable::{
-            DEFAULT_TEV_CUT_RATE, DEFAULT_TEV_DEG, DEFAULT_TEV_DOSE_NMOL, DEFAULT_TEV_DOSE_TIME,
-            DEFAULT_TEV_PLASMA_VD, TevDose, TevFields,
+            TevDose, TevFields, DEFAULT_TEV_CUT_RATE, DEFAULT_TEV_DEG, DEFAULT_TEV_DOSE_NMOL,
+            DEFAULT_TEV_DOSE_TIME, DEFAULT_TEV_PLASMA_VD,
         },
     },
-    pk::{DoseApplyingSolout, ScheduledStateUpdate, validate_unique_dose_times},
+    pk::{validate_unique_dose_times, DoseApplyingSolout, ScheduledStateUpdate},
     solve::SpeciesAccessError,
+    SolutionAccess, Solve,
 };
 
 /// Chemogenetic model + fast erasable RMA state.

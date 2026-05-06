@@ -220,8 +220,8 @@ mod tests {
     #[test]
     fn default_simulation() {
         let mut model = StochasticModel::default();
-        let mut solver = ExplicitRungeKutta::rk4(DT);
-        let solution = model.solve(T0, TF, DT, State::zeros(), &mut solver);
+        let solver = ExplicitRungeKutta::rk4(DT);
+        let solution = model.solve(T0, TF, DT, State::zeros(), solver);
 
         assert!(solution.is_ok());
         let solution = solution.unwrap();
@@ -246,16 +246,12 @@ mod tests {
     fn deterministic_seed_reproducibility() {
         let mut model_a = StochasticModel::default();
         let mut model_b = StochasticModel::default();
-        let mut solver_a = ExplicitRungeKutta::rk4(DT);
-        let mut solver_b = ExplicitRungeKutta::rk4(DT);
+        let solver_a = ExplicitRungeKutta::rk4(DT);
+        let solver_b = ExplicitRungeKutta::rk4(DT);
 
-        let solution_a = model_a
-            .solve(T0, TF, DT, State::zeros(), &mut solver_a)
-            .unwrap();
+        let solution_a = model_a.solve(T0, TF, DT, State::zeros(), solver_a).unwrap();
 
-        let solution_b = model_b
-            .solve(T0, TF, DT, State::zeros(), &mut solver_b)
-            .unwrap();
+        let solution_b = model_b.solve(T0, TF, DT, State::zeros(), solver_b).unwrap();
 
         // Same seed should produce identical trajectories
         for (a, b) in solution_a.y.iter().zip(solution_b.y.iter()) {
@@ -268,16 +264,12 @@ mod tests {
     fn different_seed_produces_different_trajectory() {
         let mut model_a = StochasticModel::default();
         let mut model_b = StochasticModel::builder().seed(99).build().unwrap();
-        let mut solver_a = ExplicitRungeKutta::rk4(DT);
-        let mut solver_b = ExplicitRungeKutta::rk4(DT);
+        let solver_a = ExplicitRungeKutta::rk4(DT);
+        let solver_b = ExplicitRungeKutta::rk4(DT);
 
-        let solution_a = model_a
-            .solve(T0, TF, DT, State::zeros(), &mut solver_a)
-            .unwrap();
+        let solution_a = model_a.solve(T0, TF, DT, State::zeros(), solver_a).unwrap();
 
-        let solution_b = model_b
-            .solve(T0, TF, DT, State::zeros(), &mut solver_b)
-            .unwrap();
+        let solution_b = model_b.solve(T0, TF, DT, State::zeros(), solver_b).unwrap();
 
         // Different seeds should produce different trajectories (check a late time point)
         let last = solution_a.y.len() - 1;
@@ -295,8 +287,8 @@ mod tests {
         assert!(result.is_ok());
         let mut model = result.unwrap();
 
-        let mut solver = ExplicitRungeKutta::rk4(DT);
-        let solution = model.solve(T0, TF, DT, State::zeros(), &mut solver);
+        let solver = ExplicitRungeKutta::rk4(DT);
+        let solution = model.solve(T0, TF, DT, State::zeros(), solver);
 
         assert!(solution.is_ok());
     }

@@ -6,33 +6,38 @@
 //! ## Usage
 //!
 //! CNO is assumed to be administered via bolus injection.
-//! To set the administration schedule, see the [`Dose`] struct and the [`create_cno_schedule`] function.
+//! To set the administration schedule, see the [`CnoDose`] struct and the [`create_cno_schedule`] function.
 //!
 //! ```rust
 //! use rma_kinetics::{models::cno, Solve};
 //! use differential_equations::methods::ExplicitRungeKutta;
 //!
-//! let dose = cno::Dose::new(0.03, 0.);
+//! let dose = cno::CnoDose::new(0.03, 0.);
 //! let model = cno::Model::builder().doses(vec![dose]).build()?;
 //! let init_state = cno::State::zeros();
-//! let mut solver = ExplicitRungeKutta::dopri5();
+//! let solver = ExplicitRungeKutta::dopri5();
 //!
-//! let solution = model.solve(0., 48., 1., init_state, &mut solver);
+//! let solution = model.solve(0., 48., 1., init_state, solver);
 //! assert!(solution.is_ok());
 //! Ok::<(), cno::ModelBuilderError>(())
 //! ```
 
-use crate::{pk::DoseApplyingSolout, solve::SpeciesAccessError, SolutionAccess, Solve};
+use crate::{
+    SolutionAccess, Solve,
+    pk::{DoseApplyingSolout, ScheduledDose, ScheduledStateUpdate, validate_unique_dose_times},
+    solve::SpeciesAccessError,
+};
 use derive_builder::Builder;
 use differential_equations::{
     derive::State as StateTrait,
     error::Error,
-    ode::{ODEProblem, OrdinaryNumericalMethod, ODE},
+    ivp::IVP,
+    ode::{ODE, OrdinaryNumericalMethod},
     prelude::{Interpolation, Solution},
 };
 
 #[cfg(feature = "py")]
-use pyo3::{exceptions::PyValueError, pyclass, pyfunction, pymethods, PyResult};
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pyfunction, pymethods};
 
 #[cfg(feature = "py")]
 use crate::solve::{InnerSolution, PySolution, PySolver};
@@ -50,27 +55,47 @@ const CNO_MW: f64 = 342.8; // g/mol
 
 /// Defines a CNO dose given an amount in mg and administration time.
 /// Assumes this is an instantaneous injection.
-#[cfg_attr(feature = "py", pyclass)]
+#[cfg_attr(feature = "py", pyclass(name = "CnoDose"))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
-pub struct Dose {
+pub struct CnoDose {
     pub mg: f64,
     pub nmol: f64,
     pub time: f64,
 }
 
-impl Dose {
-    /// Create a new `Dose` given an amount in mg and administration time.
+impl CnoDose {
+    /// Create a new `CnoDose` given an amount in mg and administration time.
     pub fn new(mg: f64, time: f64) -> Self {
         let nmol = mg / CNO_MW * 1e6;
         Self { mg, nmol, time }
     }
 }
 
+impl ScheduledDose for CnoDose {
+    fn time(&self) -> f64 {
+        self.time
+    }
+
+    fn amount(&self) -> f64 {
+        self.nmol
+    }
+}
+
+impl<S: CNOFields> ScheduledStateUpdate<S> for CnoDose {
+    fn time(&self) -> f64 {
+        self.time
+    }
+
+    fn apply(&self, state: &mut S) {
+        *state.peritoneal_cno_mut() += self.nmol;
+    }
+}
+
 #[cfg(feature = "py")]
 #[pymethods]
-impl Dose {
-    /// Create a new `Dose` given an amount in mg and administration time.
+impl CnoDose {
+    /// Create a new `CnoDose` given an amount in mg and administration time.
     #[new]
     pub fn create(mg: f64, time: f64) -> Self {
         Self::new(mg, time)
@@ -125,13 +150,13 @@ pub fn create_cno_schedule(
     start_time: f64,
     repeat: Option<usize>,
     interval: Option<f64>,
-) -> Vec<Dose> {
+) -> Vec<CnoDose> {
     let mut schedule = Vec::new();
     let mut current_time = start_time;
     let interval = interval.unwrap_or(0.);
 
     for _ in 0..repeat.unwrap_or(0) + 1 {
-        schedule.push(Dose::new(mg, current_time));
+        schedule.push(CnoDose::new(mg, current_time));
         current_time += interval;
     }
     schedule
@@ -303,6 +328,14 @@ impl SolutionAccess for Solution<f64, State<f64>> {
     fn max_brain_clz(&self) -> Result<(f64, f64), SpeciesAccessError> {
         Ok(crate::max_species!(self, brain_clz))
     }
+
+    fn plasma_tev(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
+    }
+
+    fn max_plasma_tev(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
+    }
 }
 
 #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
@@ -457,7 +490,7 @@ impl CNOFields for State<f64> {
 /// This enables models to access doses either directly (cno::Model)
 /// or indirectly through a nested CNO PK model (chemogenetic::Model).
 pub trait CNOPKAccess {
-    fn get_doses(&self) -> &Vec<Dose>;
+    fn get_doses(&self) -> &Vec<CnoDose>;
 }
 
 const DEFAULT_DOSE: f64 = 0.03;
@@ -480,10 +513,10 @@ const DEFAULT_CLZ_BRAIN_VD: f64 = 8.87e-2;
 #[cfg_attr(feature = "py", pyclass)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Builder)]
-#[builder(derive(Debug))]
+#[builder(derive(Debug), build_fn(validate = "Self::validate"))]
 pub struct Model {
-    #[builder(default = "vec![Dose::new(DEFAULT_DOSE, DEFAULT_DOSE_TIME)]")]
-    pub doses: Vec<Dose>,
+    #[builder(default = "vec![CnoDose::new(DEFAULT_DOSE, DEFAULT_DOSE_TIME)]")]
+    pub doses: Vec<CnoDose>,
     #[builder(default = "DEFAULT_CNO_ABSORPTION")]
     pub cno_absorption: f64,
     #[builder(default = "DEFAULT_CNO_ELIMINATION")]
@@ -514,9 +547,6 @@ pub struct Model {
 
 impl Model {
     /// Create a new CNO model builder.
-    // pub fn builder(doses: Vec<Dose>) -> ModelBuilder {
-    //     ModelBuilder::new(doses)
-    // }
     pub fn builder() -> ModelBuilder {
         ModelBuilder::default()
     }
@@ -557,8 +587,18 @@ impl Default for Model {
     }
 }
 
+impl ModelBuilder {
+    fn validate(&self) -> Result<(), String> {
+        if let Some(doses) = self.doses.as_deref() {
+            validate_unique_dose_times(doses).map_err(|e| e.to_string())
+        } else {
+            Ok(())
+        }
+    }
+}
+
 impl CNOPKAccess for Model {
-    fn get_doses(&self) -> &Vec<Dose> {
+    fn get_doses(&self) -> &Vec<CnoDose> {
         &self.doses
     }
 }
@@ -578,30 +618,30 @@ impl Solve for Model {
         tf: f64,
         dt: f64,
         init_state: Self::State,
-        solver: &mut S,
+        solver: S,
     ) -> Result<Solution<f64, Self::State>, Error<f64, Self::State>>
     where
         S: OrdinaryNumericalMethod<f64, Self::State> + Interpolation<f64, Self::State>,
     {
         // pre-apply any doses at t0 to the initial state
         let mut adjusted_init_state = init_state;
-        let mut start_dose_idx = 0;
-        let n_applied_doses = &self
+        let scheduled_updates = self
             .doses
             .iter()
-            .filter(|dose| (dose.time - t0).abs() < 1e-10)
-            .map(|dose| *adjusted_init_state.peritoneal_cno_mut() += dose.nmol)
-            .count();
-        start_dose_idx += n_applied_doses;
+            .filter_map(|dose| {
+                if (dose.time - t0).abs() < 1e-10 {
+                    adjusted_init_state.peritoneal_cno += dose.nmol;
+                    None
+                } else {
+                    Some(dose.clone())
+                }
+            })
+            .collect::<Vec<CnoDose>>();
 
-        let mut dosing_solout = DoseApplyingSolout::<State<f64>>::new(
-            self.doses[start_dose_idx..].to_vec(),
-            t0,
-            tf,
-            dt,
-        );
-        let problem = ODEProblem::new(self, t0, tf, adjusted_init_state);
-        let mut solution = problem.solout(&mut dosing_solout).solve(solver)?;
+        let dosing_solout =
+            DoseApplyingSolout::<State<f64>, CnoDose>::new(scheduled_updates, t0, tf, dt);
+        let problem = IVP::ode(self, t0, tf, adjusted_init_state);
+        let mut solution = problem.solout(dosing_solout).method(solver).solve()?;
 
         // return concentrations using given Vd (except for peritoneal compartment)
         let y = solution
@@ -625,9 +665,9 @@ impl Solve for Model {
 #[pymethods]
 impl Model {
     #[new]
-    #[pyo3(signature = (doses=vec![Dose::new(DEFAULT_DOSE, DEFAULT_DOSE_TIME)], cno_absorption=DEFAULT_CNO_ABSORPTION, cno_elimination=DEFAULT_CNO_ELIMINATION, cno_reverse_metabolism=DEFAULT_CNO_REVERSE_METABOLISM, clz_metabolism=DEFAULT_CLZ_METABOLISM, clz_elimination=DEFAULT_CLZ_ELIMINATION, cno_brain_transport=DEFAULT_CNO_BRAIN_TRANSPORT, cno_plasma_transport=DEFAULT_CNO_PLASMA_TRANSPORT, clz_brain_transport=DEFAULT_CLZ_BRAIN_TRANSPORT, clz_plasma_transport=DEFAULT_CLZ_PLASMA_TRANSPORT, cno_plasma_vd=DEFAULT_CNO_PLASMA_VD, cno_brain_vd=DEFAULT_CNO_BRAIN_VD, clz_plasma_vd=DEFAULT_CLZ_PLASMA_VD, clz_brain_vd=DEFAULT_CLZ_BRAIN_VD))]
+    #[pyo3(signature = (doses=vec![CnoDose::new(DEFAULT_DOSE, DEFAULT_DOSE_TIME)], cno_absorption=DEFAULT_CNO_ABSORPTION, cno_elimination=DEFAULT_CNO_ELIMINATION, cno_reverse_metabolism=DEFAULT_CNO_REVERSE_METABOLISM, clz_metabolism=DEFAULT_CLZ_METABOLISM, clz_elimination=DEFAULT_CLZ_ELIMINATION, cno_brain_transport=DEFAULT_CNO_BRAIN_TRANSPORT, cno_plasma_transport=DEFAULT_CNO_PLASMA_TRANSPORT, clz_brain_transport=DEFAULT_CLZ_BRAIN_TRANSPORT, clz_plasma_transport=DEFAULT_CLZ_PLASMA_TRANSPORT, cno_plasma_vd=DEFAULT_CNO_PLASMA_VD, cno_brain_vd=DEFAULT_CNO_BRAIN_VD, clz_plasma_vd=DEFAULT_CLZ_PLASMA_VD, clz_brain_vd=DEFAULT_CLZ_BRAIN_VD))]
     pub fn create(
-        doses: Vec<Dose>,
+        doses: Vec<CnoDose>,
         cno_absorption: f64,
         cno_elimination: f64,
         cno_reverse_metabolism: f64,
@@ -641,8 +681,10 @@ impl Model {
         cno_brain_vd: f64,
         clz_plasma_vd: f64,
         clz_brain_vd: f64,
-    ) -> Self {
-        Self {
+    ) -> PyResult<Self> {
+        validate_unique_dose_times(&doses).map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+        Ok(Self {
             doses,
             cno_absorption,
             cno_elimination,
@@ -657,7 +699,7 @@ impl Model {
             cno_brain_vd,
             clz_plasma_vd,
             clz_brain_vd,
-        }
+        })
     }
 
     #[pyo3(name = "solve")]
@@ -671,22 +713,21 @@ impl Model {
     ) -> PyResult<PySolution> {
         let result = match solver.solver_type.as_str() {
             "dopri5" => {
-                let mut solver_instance =
-                    differential_equations::methods::ExplicitRungeKutta::dopri5()
-                        .rtol(solver.rtol)
-                        .atol(solver.atol)
-                        .h0(solver.dt0)
-                        .h_min(solver.min_dt)
-                        .h_max(solver.max_dt)
-                        .max_steps(solver.max_steps)
-                        .max_rejects(solver.max_rejected_steps)
-                        .safety_factor(solver.safety_factor)
-                        .min_scale(solver.min_scale)
-                        .max_scale(solver.max_scale);
-                self.solve(t0, tf, dt, init_state.inner, &mut solver_instance)
+                let solver_instance = differential_equations::methods::ExplicitRungeKutta::dopri5()
+                    .rtol(solver.rtol)
+                    .atol(solver.atol)
+                    .h0(solver.dt0)
+                    .h_min(solver.min_dt)
+                    .h_max(solver.max_dt)
+                    .max_steps(solver.max_steps)
+                    .max_rejects(solver.max_rejected_steps)
+                    .safety_factor(solver.safety_factor)
+                    .min_scale(solver.min_scale)
+                    .max_scale(solver.max_scale);
+                self.solve(t0, tf, dt, init_state.inner, solver_instance)
             }
             "kvaerno3" => {
-                let mut solver_instance =
+                let solver_instance =
                     differential_equations::methods::DiagonallyImplicitRungeKutta::kvaerno423()
                         .rtol(solver.rtol)
                         .atol(solver.atol)
@@ -698,7 +739,7 @@ impl Model {
                         .safety_factor(solver.safety_factor)
                         .min_scale(solver.min_scale)
                         .max_scale(solver.max_scale);
-                self.solve(t0, tf, dt, init_state.inner, &mut solver_instance)
+                self.solve(t0, tf, dt, init_state.inner, solver_instance)
             }
             _ => {
                 return Err(PyValueError::new_err(format!(
@@ -717,7 +758,7 @@ impl Model {
     }
 
     #[getter]
-    fn get_doses(&self) -> Vec<Dose> {
+    fn get_doses(&self) -> Vec<CnoDose> {
         self.doses.clone()
     }
     #[getter]
@@ -773,7 +814,7 @@ impl Model {
         self.clz_brain_vd
     }
     #[setter]
-    fn set_doses(&mut self, doses: Vec<Dose>) -> PyResult<()> {
+    fn set_doses(&mut self, doses: Vec<CnoDose>) -> PyResult<()> {
         self.doses = doses;
         Ok(())
     }
@@ -851,7 +892,7 @@ mod tests {
 
     #[test]
     fn cno_dose_creation() {
-        let single_dose = Dose::new(0.03, 0.);
+        let single_dose = CnoDose::new(0.03, 0.);
         assert_eq!(single_dose.mg, 0.03);
         assert_eq!(single_dose.nmol, 0.03 / CNO_MW * 1e6);
         assert_eq!(single_dose.time, 0.);
@@ -907,7 +948,7 @@ mod tests {
         assert_eq!(default_model.cno_absorption, DEFAULT_CNO_ABSORPTION);
         assert_eq!(default_model.cno_elimination, DEFAULT_CNO_ELIMINATION);
 
-        let dose = Dose::new(0.03, 0.);
+        let dose = CnoDose::new(0.03, 0.);
         let model_with_dose = Model::builder().doses(vec![dose]).build()?;
         assert_eq!(model_with_dose.doses.len(), 1);
         assert_eq!(model_with_dose.doses[0].mg, 0.03);
@@ -921,8 +962,16 @@ mod tests {
     }
 
     #[test]
+    fn cno_model_rejects_duplicate_nonzero_dose_times() {
+        let duplicate_doses = vec![CnoDose::new(0.03, 1.), CnoDose::new(0.05, 1.)];
+        let result = Model::builder().doses(duplicate_doses).build();
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn cno_model_simulation() -> Result<(), Box<dyn std::error::Error>> {
-        let mut solver = ExplicitRungeKutta::dopri5();
+        let solver_1 = ExplicitRungeKutta::dopri5();
         let t0 = 0.;
         let tf = 24.;
         let dt = 1.;
@@ -930,7 +979,7 @@ mod tests {
         // test default model - dose (0.03 mg) applied at t=0
         let default_model = Model::default();
         let init_state = State::zeros();
-        let solution = default_model.solve(t0, tf, dt, init_state, &mut solver);
+        let solution = default_model.solve(t0, tf, dt, init_state, solver_1);
 
         assert!(solution.is_ok());
         let solution = solution.unwrap();
@@ -938,9 +987,10 @@ mod tests {
         assert!(solution.y[0].peritoneal_cno > 0.);
 
         // apply dose at t=1
-        let dose = Dose::new(0.03, 1.);
+        let solver_2 = ExplicitRungeKutta::dopri5();
+        let dose = CnoDose::new(0.03, 1.);
         let custom_model = Model::builder().doses(vec![dose.clone()]).build()?;
-        let solution = custom_model.solve(t0, tf, dt, init_state, &mut solver);
+        let solution = custom_model.solve(t0, tf, dt, init_state, solver_2);
 
         assert!(solution.is_ok());
         let solution = solution.unwrap();
@@ -958,25 +1008,29 @@ mod tests {
 
     #[test]
     fn small_dt() -> Result<(), Box<dyn std::error::Error>> {
-        let model = Model::builder().doses(vec![Dose::new(0.03, 1.)]).build()?;
-        let mut solver = ExplicitRungeKutta::dopri5();
+        let model = Model::builder()
+            .doses(vec![CnoDose::new(0.03, 1.)])
+            .build()?;
+        let solver = ExplicitRungeKutta::dopri5();
         let init_state = State::zeros();
 
-        let solution = model.solve(0., 10., 0.1, init_state, &mut solver);
+        let solution = model.solve(0., 10., 0.1, init_state, solver);
         assert!(solution.is_ok());
         Ok(())
     }
 
     #[test]
     fn expected_ts() -> Result<(), Box<dyn std::error::Error>> {
-        let model = Model::builder().doses(vec![Dose::new(0.03, 1.)]).build()?;
+        let model = Model::builder()
+            .doses(vec![CnoDose::new(0.03, 1.)])
+            .build()?;
         let dt = 1.;
         let t0 = 0.;
         let tf = 10.;
         let init_state = State::zeros();
-        let mut solver = ExplicitRungeKutta::dopri5();
+        let solver = ExplicitRungeKutta::dopri5();
 
-        let solution = model.solve(t0, tf, dt, init_state, &mut solver);
+        let solution = model.solve(t0, tf, dt, init_state, solver);
         assert!(solution.is_ok());
         let solution = solution.unwrap();
         assert!(matches!(solution.status, Status::Complete));
@@ -984,8 +1038,11 @@ mod tests {
         assert_eq!(solution.y.len(), expected_len);
         println!("{:?}", solution.t);
 
-        let model = Model::builder().doses(vec![Dose::new(0.03, 1.5)]).build()?;
-        let solution = model.solve(t0, tf, dt, init_state, &mut solver);
+        let solver = ExplicitRungeKutta::dopri5();
+        let model = Model::builder()
+            .doses(vec![CnoDose::new(0.03, 1.5)])
+            .build()?;
+        let solution = model.solve(t0, tf, dt, init_state, solver);
         assert!(solution.is_ok());
         let solution = solution.unwrap();
         assert!(matches!(solution.status, Status::Complete));
@@ -1003,14 +1060,14 @@ mod tests {
     #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
     #[test]
     fn dataframe_conversion() -> Result<(), PolarsError> {
-        let mut solver = ExplicitRungeKutta::dopri5();
+        let solver = ExplicitRungeKutta::dopri5();
         let init_state = State::zeros();
         let model = Model::builder()
-            .doses(vec![Dose::new(0.03, 1.5)])
+            .doses(vec![CnoDose::new(0.03, 1.5)])
             .build()
             .unwrap();
 
-        let solution = model.solve(0., 24., 1., init_state, &mut solver);
+        let solution = model.solve(0., 24., 1., init_state, solver);
         assert!(solution.is_ok());
         let unwrapped_solution = solution.unwrap();
 

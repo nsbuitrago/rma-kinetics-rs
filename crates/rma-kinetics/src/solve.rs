@@ -1,5 +1,5 @@
 #[cfg(feature = "py")]
-use pyo3::{exceptions::PyValueError, pyclass, pymethods, Bound, FromPyObject, PyResult, Python};
+use pyo3::{Bound, FromPyObject, PyResult, Python, exceptions::PyValueError, pyclass, pymethods};
 
 #[cfg(feature = "py")]
 use numpy::PyArray1;
@@ -35,6 +35,7 @@ pub enum SpeciesAccessError {
     NoBrainCno,
     NoPlasmaClz,
     NoBrainClz,
+    NoPlasmaTev,
 }
 
 impl std::fmt::Display for SpeciesAccessError {
@@ -65,6 +66,9 @@ impl std::fmt::Display for SpeciesAccessError {
             SpeciesAccessError::NoBrainClz => {
                 write!(f, "Brain clozapine is not available in this model")
             }
+            SpeciesAccessError::NoPlasmaTev => {
+                write!(f, "Plasma TEV is not available in this model")
+            }
         }
     }
 }
@@ -81,7 +85,7 @@ pub trait Solve {
         tf: f64,
         dt: f64,
         init_state: Self::State,
-        solver: &mut S,
+        solver: S,
     ) -> Result<Solution<f64, Self::State>, Error<f64, Self::State>>
     where
         S: OrdinaryNumericalMethod<f64, Self::State> + Interpolation<f64, Self::State>;
@@ -100,7 +104,7 @@ pub trait StochasticSolve {
         tf: f64,
         dt: f64,
         init_state: Self::State,
-        solver: &mut S,
+        solver: S,
     ) -> Result<Solution<f64, Self::State>, Error<f64, Self::State>>
     where
         S: StochasticNumericalMethod<f64, Self::State> + Interpolation<f64, Self::State>;
@@ -153,10 +157,12 @@ pub struct PySolver {
 #[cfg(feature = "py")]
 pub enum InnerSolution {
     Constitutive(Solution<f64, constitutive::State<f64>>),
+    Erasable(Solution<f64, constitutive::erasable::State<f64>>),
     Dox(Solution<f64, dox::State<f64>>),
     TetOff(Solution<f64, tetoff::State<f64>>),
     CNO(Solution<f64, cno::State<f64>>),
     Chemogenetic(Solution<f64, chemogenetic::State<f64>>),
+    ChemogeneticErasable(Solution<f64, chemogenetic::erasable::State<f64>>),
     Oscillation(Solution<f64, oscillation::State<f64>>),
 }
 
@@ -184,6 +190,8 @@ pub trait SolutionAccess {
     fn max_plasma_clz(&self) -> Result<(f64, f64), SpeciesAccessError>;
     fn brain_clz(&self) -> Result<Vec<f64>, SpeciesAccessError>;
     fn max_brain_clz(&self) -> Result<(f64, f64), SpeciesAccessError>;
+    fn plasma_tev(&self) -> Result<Vec<f64>, SpeciesAccessError>;
+    fn max_plasma_tev(&self) -> Result<(f64, f64), SpeciesAccessError>;
 }
 
 #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
@@ -337,6 +345,14 @@ macro_rules! impl_solution_access_basic_rma {
             fn max_brain_clz(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
                 Err($crate::solve::SpeciesAccessError::NoBrainClz)
             }
+
+            fn plasma_tev(&self) -> Result<Vec<f64>, $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoPlasmaTev)
+            }
+
+            fn max_plasma_tev(&self) -> Result<(f64, f64), $crate::solve::SpeciesAccessError> {
+                Err($crate::solve::SpeciesAccessError::NoPlasmaTev)
+            }
         }
     };
 }
@@ -353,10 +369,12 @@ macro_rules! access_field {
     ($self:expr, $field:ident) => {
         match $self {
             InnerSolution::Constitutive(s) => &s.$field,
+            InnerSolution::Erasable(s) => &s.$field,
             InnerSolution::Dox(s) => &s.$field,
             InnerSolution::TetOff(s) => &s.$field,
             InnerSolution::CNO(s) => &s.$field,
             InnerSolution::Chemogenetic(s) => &s.$field,
+            InnerSolution::ChemogeneticErasable(s) => &s.$field,
             InnerSolution::Oscillation(s) => &s.$field,
         }
     };
@@ -395,6 +413,7 @@ impl PySolution {
         // let species = get_common_species!(&self.inner, plasma_rma);
         let plasma_rma = match &self.inner {
             InnerSolution::Constitutive(s) => s.plasma_rma().unwrap(),
+            InnerSolution::Erasable(s) => s.plasma_rma().unwrap(),
             InnerSolution::Dox(_) => {
                 return Err(PyValueError::new_err(
                     "plasma RMA is not available for the dox model",
@@ -407,6 +426,7 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.plasma_rma().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.plasma_rma().unwrap(),
             InnerSolution::Oscillation(s) => s.plasma_rma().unwrap(),
         };
 
@@ -418,6 +438,7 @@ impl PySolution {
     fn brain_rma<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let brain_rma = match &self.inner {
             InnerSolution::Constitutive(s) => s.brain_rma().unwrap(),
+            InnerSolution::Erasable(s) => s.brain_rma().unwrap(),
             InnerSolution::Dox(_) => {
                 return Err(PyValueError::new_err(
                     "brain RMA is not available for the dox model",
@@ -430,6 +451,7 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.brain_rma().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.brain_rma().unwrap(),
             InnerSolution::Oscillation(s) => s.brain_rma().unwrap(),
         };
 
@@ -445,6 +467,11 @@ impl PySolution {
                     "tTA is not available for the constitutive model",
                 ));
             }
+            InnerSolution::Erasable(_) => {
+                return Err(PyValueError::new_err(
+                    "tTA is not available for the erasable model",
+                ));
+            }
             InnerSolution::Dox(_) => {
                 return Err(PyValueError::new_err(
                     "tTA is not available for the dox model",
@@ -457,6 +484,7 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.tta().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.tta().unwrap(),
             InnerSolution::Oscillation(_) => {
                 return Err(PyValueError::new_err(
                     "tTA is not available for the oscillation model",
@@ -476,6 +504,11 @@ impl PySolution {
                     "plasma dox is not available for the constitutive model",
                 ));
             }
+            InnerSolution::Erasable(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma dox is not available for the erasable model",
+                ));
+            }
             InnerSolution::Dox(s) => s.plasma_dox().unwrap(),
             InnerSolution::TetOff(s) => s.plasma_dox().unwrap(),
             InnerSolution::CNO(_) => {
@@ -484,6 +517,7 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.plasma_dox().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.plasma_dox().unwrap(),
             InnerSolution::Oscillation(_) => {
                 return Err(PyValueError::new_err(
                     "plasma dox is not available for the oscillation model",
@@ -503,6 +537,11 @@ impl PySolution {
                     "brain dox is not available for the constitutive model",
                 ));
             }
+            InnerSolution::Erasable(_) => {
+                return Err(PyValueError::new_err(
+                    "brain dox is not available for the erasable model",
+                ));
+            }
             InnerSolution::Dox(s) => s.brain_dox().unwrap(),
             InnerSolution::TetOff(s) => s.brain_dox().unwrap(),
             InnerSolution::CNO(_) => {
@@ -511,6 +550,7 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.brain_dox().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.brain_dox().unwrap(),
             InnerSolution::Oscillation(_) => {
                 return Err(PyValueError::new_err(
                     "brain dox is not available for the oscillation model",
@@ -530,6 +570,11 @@ impl PySolution {
                     "dreadd is not available for the constitutive model",
                 ));
             }
+            InnerSolution::Erasable(_) => {
+                return Err(PyValueError::new_err(
+                    "dreadd is not available for the erasable model",
+                ));
+            }
             InnerSolution::Dox(_) => {
                 return Err(PyValueError::new_err(
                     "dreadd is not available for the dox model",
@@ -546,6 +591,7 @@ impl PySolution {
                 ));
             }
             InnerSolution::Chemogenetic(s) => s.dreadd().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.dreadd().unwrap(),
             InnerSolution::Oscillation(_) => {
                 return Err(PyValueError::new_err(
                     "dreadd is not available for the oscillation model",
@@ -565,6 +611,11 @@ impl PySolution {
                     "peritoneal CNO is not available for the constitutive model",
                 ));
             }
+            InnerSolution::Erasable(_) => {
+                return Err(PyValueError::new_err(
+                    "peritoneal CNO is not available for the erasable model",
+                ));
+            }
             InnerSolution::Dox(_) => {
                 return Err(PyValueError::new_err(
                     "peritoneal CNO is not available for the dox model",
@@ -577,6 +628,7 @@ impl PySolution {
             }
             InnerSolution::CNO(s) => s.peritoneal_cno().unwrap(),
             InnerSolution::Chemogenetic(s) => s.peritoneal_cno().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.peritoneal_cno().unwrap(),
             InnerSolution::Oscillation(_) => {
                 return Err(PyValueError::new_err(
                     "peritoneal CNO is not available for the oscillation model",
@@ -596,6 +648,11 @@ impl PySolution {
                     "plasma CNO is not available for the constitutive model",
                 ));
             }
+            InnerSolution::Erasable(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma CNO is not available for the erasable model",
+                ));
+            }
             InnerSolution::Dox(_) => {
                 return Err(PyValueError::new_err(
                     "plasma CNO is not available for the dox model",
@@ -608,6 +665,7 @@ impl PySolution {
             }
             InnerSolution::CNO(s) => s.plasma_cno().unwrap(),
             InnerSolution::Chemogenetic(s) => s.plasma_cno().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.plasma_cno().unwrap(),
             InnerSolution::Oscillation(_) => {
                 return Err(PyValueError::new_err(
                     "plasma CNO is not available for the oscillation model",
@@ -627,6 +685,11 @@ impl PySolution {
                     "brain CNO is not available for the constitutive model",
                 ));
             }
+            InnerSolution::Erasable(_) => {
+                return Err(PyValueError::new_err(
+                    "brain CNO is not available for the erasable model",
+                ));
+            }
             InnerSolution::Dox(_) => {
                 return Err(PyValueError::new_err(
                     "brain CNO is not available for the dox model",
@@ -639,6 +702,7 @@ impl PySolution {
             }
             InnerSolution::CNO(s) => s.brain_cno().unwrap(),
             InnerSolution::Chemogenetic(s) => s.brain_cno().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.brain_cno().unwrap(),
             InnerSolution::Oscillation(_) => {
                 return Err(PyValueError::new_err(
                     "brain CNO is not available for the oscillation model",
@@ -658,6 +722,11 @@ impl PySolution {
                     "plasma CLZ is not available for the constitutive model",
                 ));
             }
+            InnerSolution::Erasable(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma CLZ is not available for the erasable model",
+                ));
+            }
             InnerSolution::Dox(_) => {
                 return Err(PyValueError::new_err(
                     "plasma CLZ is not available for the dox model",
@@ -670,6 +739,7 @@ impl PySolution {
             }
             InnerSolution::CNO(s) => s.plasma_clz().unwrap(),
             InnerSolution::Chemogenetic(s) => s.plasma_clz().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.plasma_clz().unwrap(),
             InnerSolution::Oscillation(_) => {
                 return Err(PyValueError::new_err(
                     "plasma CLZ is not available for the oscillation model",
@@ -689,6 +759,11 @@ impl PySolution {
                     "brain CLZ is not available for the constitutive model",
                 ));
             }
+            InnerSolution::Erasable(_) => {
+                return Err(PyValueError::new_err(
+                    "brain CLZ is not available for the erasable model",
+                ));
+            }
             InnerSolution::Dox(_) => {
                 return Err(PyValueError::new_err(
                     "brain CLZ is not available for the dox model",
@@ -701,6 +776,7 @@ impl PySolution {
             }
             InnerSolution::CNO(s) => s.brain_clz().unwrap(),
             InnerSolution::Chemogenetic(s) => s.brain_clz().unwrap(),
+            InnerSolution::ChemogeneticErasable(s) => s.brain_clz().unwrap(),
             InnerSolution::Oscillation(_) => {
                 return Err(PyValueError::new_err(
                     "brain CLZ is not available for the oscillation model",
@@ -709,6 +785,47 @@ impl PySolution {
         };
 
         Ok(PyArray1::from_vec(py, brain_clz))
+    }
+
+    /// Get plasma TEV array.
+    #[getter]
+    fn plasma_tev<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let plasma_tev = match &self.inner {
+            InnerSolution::Constitutive(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma TEV is not available for the constitutive model",
+                ));
+            }
+            InnerSolution::Erasable(s) => s.plasma_tev().unwrap(),
+            InnerSolution::Dox(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma TEV is not available for the dox model",
+                ));
+            }
+            InnerSolution::TetOff(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma TEV is not available for the tetoff model",
+                ));
+            }
+            InnerSolution::CNO(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma TEV is not available for the cno model",
+                ));
+            }
+            InnerSolution::Chemogenetic(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma TEV is not available for the chemogenetic model",
+                ));
+            }
+            InnerSolution::ChemogeneticErasable(s) => s.plasma_tev().unwrap(),
+            InnerSolution::Oscillation(_) => {
+                return Err(PyValueError::new_err(
+                    "plasma TEV is not available for the oscillation model",
+                ));
+            }
+        };
+
+        Ok(PyArray1::from_vec(py, plasma_tev))
     }
 
     /// Returns the elapsed time in seconds

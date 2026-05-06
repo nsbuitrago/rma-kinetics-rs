@@ -33,15 +33,15 @@
 //! let dox_access_period = dox::AccessPeriod::new(40., 0.0..=24.);
 //! let model = dox::Model::builder().schedule(vec![dox_access_period]).build()?;
 //! let init_state = dox::State::zeros();
-//! let mut solver = ExplicitRungeKutta::dopri5();
+//! let solver = ExplicitRungeKutta::dopri5();
 //!
-//! let solution = model.solve(0., 48., 1., init_state, &mut solver);
+//! let solution = model.solve(0., 48., 1., init_state, solver);
 //! assert!(solution.is_ok());
 //! Ok::<(), Error>(())
 //! ```
 //!
 
-use crate::{pk::Error, solve::SpeciesAccessError, SolutionAccess};
+use crate::{SolutionAccess, pk::Error, solve::SpeciesAccessError};
 use differential_equations::{
     derive::State as StateTrait,
     ode::ODE,
@@ -51,7 +51,7 @@ use rma_kinetics_derive::Solve;
 use std::ops::RangeInclusive;
 
 #[cfg(feature = "py")]
-use pyo3::{exceptions::PyValueError, pyclass, pyfunction, pymethods, PyResult};
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pyfunction, pymethods};
 
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;
@@ -264,6 +264,14 @@ impl SolutionAccess for Solution<f64, State<f64>> {
 
     fn max_brain_dox(&self) -> Result<(f64, f64), SpeciesAccessError> {
         Ok(crate::max_species!(self, brain_dox))
+    }
+
+    fn plasma_tev(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
+    }
+
+    fn max_plasma_tev(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
     }
 }
 
@@ -666,19 +674,20 @@ mod tests {
     #[test]
     fn dox_model_simulation() -> Result<(), Error> {
         let zero_model = Model::default();
-        let mut solver = ExplicitRungeKutta::dopri5();
+        let solver = ExplicitRungeKutta::dopri5();
         let init_state = State::zeros();
-        let solution = zero_model.solve(0., 24., 1., init_state, &mut solver);
+        let solution = zero_model.solve(0., 24., 1., init_state, solver);
         assert!(solution.is_ok());
         let unwrapped_solution = solution.unwrap();
         assert_eq!(unwrapped_solution.y.last().unwrap().plasma_dox, 0.);
         assert_eq!(unwrapped_solution.y.last().unwrap().brain_dox, 0.);
 
         // add dox administration period
+        let solver = ExplicitRungeKutta::dopri5();
         let custom_model = Model::builder()
             .schedule(vec![AccessPeriod::new(40., 0.0..=24.)])
             .build()?;
-        let solution = custom_model.solve(0., 24., 1., init_state, &mut solver);
+        let solution = custom_model.solve(0., 24., 1., init_state, solver);
         assert!(solution.is_ok());
         let unwrapped_solution = solution.unwrap();
         assert!(unwrapped_solution.y.last().unwrap().plasma_dox > 0.);
@@ -694,14 +703,14 @@ mod tests {
     #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
     #[test]
     fn dataframe_conversion() -> Result<(), PolarsError> {
-        let mut solver = ExplicitRungeKutta::dopri5();
+        let solver = ExplicitRungeKutta::dopri5();
         let init_state = State::zeros();
         let custom_model = Model::builder()
             .schedule(vec![AccessPeriod::new(40., 0.0..=24.)])
             .build()
             .unwrap();
 
-        let solution = custom_model.solve(0., 24., 1., init_state, &mut solver);
+        let solution = custom_model.solve(0., 24., 1., init_state, solver);
         assert!(solution.is_ok());
         let unwrapped_solution = solution.unwrap();
 

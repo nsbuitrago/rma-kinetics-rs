@@ -25,16 +25,18 @@
 //!
 //! let model = constitutive::Model::default();
 //! let init_state = constitutive::State::zeros();
-//! let mut solver = ExplicitRungeKutta::dopri5();
+//! let solver = ExplicitRungeKutta::dopri5();
 //!
-//! let solution = model.solve(0., 100., 1., init_state, &mut solver);
+//! let solution = model.solve(0., 100., 1., init_state, solver);
 //! assert!(solution.is_ok());
 //!
 //! let solution = solution.unwrap();
 //! println!("{:?}", solution.y);
 //! ```
 
+pub mod erasable;
 pub mod stochastic;
+
 pub use stochastic::StochasticModel;
 
 use derive_builder::Builder;
@@ -293,8 +295,8 @@ mod tests {
     #[test]
     fn default_simulation() {
         let model = Model::default();
-        let mut solver = ExplicitRungeKutta::dopri5();
-        let solution = model.solve(T0, TF, DT, State::default(), &mut solver);
+        let solver = ExplicitRungeKutta::dopri5();
+        let solution = model.solve(T0, TF, DT, State::default(), solver);
 
         assert!(solution.is_ok());
         let unwrapped_solution = solution.unwrap();
@@ -307,8 +309,8 @@ mod tests {
     #[test]
     fn custom_rates() {
         let model = Model::new(0.5, 0.7, 0.005);
-        let mut solver = ExplicitRungeKutta::dopri5();
-        let solution = model.solve(T0, TF, DT, State::default(), &mut solver);
+        let solver = ExplicitRungeKutta::dopri5();
+        let solution = model.solve(T0, TF, DT, State::default(), solver);
 
         assert!(solution.is_ok());
     }
@@ -316,8 +318,8 @@ mod tests {
     #[test]
     fn builder_pattern() -> Result<(), Box<dyn std::error::Error>> {
         let model = Model::builder().prod(0.5).bbb_transport(0.7).build()?;
-        let mut solver = ExplicitRungeKutta::dopri5();
-        let solution = model.solve(T0, TF, DT, State::default(), &mut solver);
+        let solver = ExplicitRungeKutta::dopri5();
+        let solution = model.solve(T0, TF, DT, State::default(), solver);
 
         assert!(solution.is_ok());
         Ok(())
@@ -327,8 +329,8 @@ mod tests {
     #[test]
     fn dataframe_conversion() -> Result<(), PolarsError> {
         let model = Model::default();
-        let mut solver = ExplicitRungeKutta::dopri5();
-        let solution = model.solve(T0, TF, DT, State::default(), &mut solver);
+        let solver = ExplicitRungeKutta::dopri5();
+        let solution = model.solve(T0, TF, DT, State::default(), solver);
 
         assert!(solution.is_ok());
         let unwrapped_solution = solution.unwrap();

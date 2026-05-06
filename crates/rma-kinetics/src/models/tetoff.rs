@@ -17,22 +17,22 @@
 //!
 //! let model = tetoff::Model::default();
 //! let init_state = tetoff::State::zeros();
-//! let mut solver = ExplicitRungeKutta::dopri5();
+//! let solver = ExplicitRungeKutta::dopri5();
 //!
-//! let solution = model.solve(0., 100., 1., init_state, &mut solver);
+//! let solution = model.solve(0., 100., 1., init_state, solver);
 //! assert!(solution.is_ok());
 //!
 use crate::{
+    SolutionAccess,
     models::dox::{DoxFields, Model as DoxModel},
     solve::SpeciesAccessError,
-    SolutionAccess,
 };
 use derive_builder::Builder;
 use differential_equations::{derive::State as StateTrait, ode::ODE, prelude::Solution};
 use rma_kinetics_derive::Solve;
 
 #[cfg(feature = "py")]
-use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
 
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;
@@ -212,6 +212,14 @@ impl SolutionAccess for Solution<f64, State<f64>> {
 
     fn max_brain_clz(&self) -> Result<(f64, f64), SpeciesAccessError> {
         Err(SpeciesAccessError::NoBrainClz)
+    }
+
+    fn plasma_tev(&self) -> Result<Vec<f64>, SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
+    }
+
+    fn max_plasma_tev(&self) -> Result<(f64, f64), SpeciesAccessError> {
+        Err(SpeciesAccessError::NoPlasmaTev)
     }
 }
 
@@ -484,10 +492,10 @@ mod tests {
     #[test]
     fn model_simulation() -> Result<(), Box<dyn std::error::Error>> {
         let default_model = Model::default();
-        let mut solver = ExplicitRungeKutta::dopri5();
+        let solver = ExplicitRungeKutta::dopri5();
         let init_state = State::zeros();
 
-        let solution = default_model.solve(0., 24., 1., init_state, &mut solver);
+        let solution = default_model.solve(0., 24., 1., init_state, solver);
         assert!(solution.is_ok());
 
         let unwrapped_solution = solution.unwrap();
@@ -500,8 +508,9 @@ mod tests {
         let custom_dox_model = DoxModel::builder()
             .schedule(vec![dox_access_period])
             .build()?;
+        let solver = ExplicitRungeKutta::dopri5();
         let custom_model = Model::builder().dox_pk_model(custom_dox_model).build()?;
-        let solution = custom_model.solve(0., 36., 1., init_state, &mut solver);
+        let solution = custom_model.solve(0., 36., 1., init_state, solver);
         assert!(solution.is_ok());
 
         let unwrapped_solution = solution.unwrap();
@@ -526,10 +535,10 @@ mod tests {
     #[test]
     fn dataframe_conversion() -> Result<(), PolarsError> {
         let default_model = Model::default();
-        let mut solver = ExplicitRungeKutta::dopri5();
+        let solver = ExplicitRungeKutta::dopri5();
         let init_state = State::zeros();
 
-        let solution = default_model.solve(0., 24., 1., init_state, &mut solver);
+        let solution = default_model.solve(0., 24., 1., init_state, solver);
         assert!(solution.is_ok());
 
         let unwrapped_solution = solution.unwrap();

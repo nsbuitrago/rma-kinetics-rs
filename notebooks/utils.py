@@ -1,8 +1,14 @@
 import polars as pl
 
-def rlu_to_nm(df: pl.DataFrame, rlu_col: str = "rlu", reporter: str = "rma") -> pl.DataFrame:
+
+def rlu_to_nm(
+    df: pl.DataFrame, rlu_col: str = "rlu", reporter: str = "rma"
+) -> pl.DataFrame:
     """
     Convert RLU values to nM concentration
+    Note this function uses conversion from our own RLU standard curves, which may
+    not generalize to your data. We recommend running your own standard curve and
+    conversion.
 
     Arguments
     ---------
@@ -23,8 +29,12 @@ def rlu_to_nm(df: pl.DataFrame, rlu_col: str = "rlu", reporter: str = "rma") -> 
         raise ValueError(f"Reporter {reporter} not supported. Must be 'rma' or 'gluc'.")
 
     if reporter == "rma":
-        return df.with_columns(((pl.col(rlu_col) * 0.0012 + 26.96) / 44).alias("concentration"))
+        return df.with_columns(
+            ((pl.col(rlu_col) * 0.0012 + 26.96) / 44).alias("concentration")
+        )
     elif reporter == "gluc":
-        return df.with_columns((pl.col(rlu_col) * 168669125 / 227.2).alias("concentration"))
+        return df.with_columns(
+            (pl.col(rlu_col) * 168669125 / 227.2).alias("concentration")
+        )
     else:
         raise ValueError(f"Reporter {reporter} not supported. Must be 'rma' or 'gluc'.")

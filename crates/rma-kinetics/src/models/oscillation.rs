@@ -22,9 +22,9 @@
 //!
 //! let model = oscillation::Model::default();
 //! let init_state = oscillation::State::zeros();
-//! let mut solver = ExplicitRungeKutta::dopri5();
+//! let solver = ExplicitRungeKutta::dopri5();
 //!
-//! let solution = model.solve(0., 100., 1., init_state, &mut solver);
+//! let solution = model.solve(0., 100., 1., init_state, solver);
 //! assert!(solution.is_ok());
 //!
 //! let solution = solution.unwrap();
@@ -43,7 +43,7 @@ use rand_distr::StandardNormal;
 use rma_kinetics_derive::Solve;
 
 #[cfg(feature = "py")]
-use pyo3::{exceptions::PyValueError, pyclass, pymethods, PyResult};
+use pyo3::{PyResult, exceptions::PyValueError, pyclass, pymethods};
 
 #[cfg(feature = "py")]
 use rma_kinetics_derive::PySolve;
@@ -306,8 +306,8 @@ mod tests {
     #[test]
     fn default_simulation() {
         let model = Model::default();
-        let mut solver = ExplicitRungeKutta::dopri5();
-        let solution = model.solve(T0, TF, DT, State::default(), &mut solver);
+        let solver = ExplicitRungeKutta::dopri5();
+        let solution = model.solve(T0, TF, DT, State::default(), solver);
 
         assert!(solution.is_ok());
         let mut unwrapped_solution = solution.unwrap();
@@ -321,8 +321,8 @@ mod tests {
     #[test]
     fn custom_rates() {
         let model = Model::new(0.5, 0.02, 0.7, 0.005);
-        let mut solver = ExplicitRungeKutta::dopri5();
-        let solution = model.solve(T0, TF, DT, State::default(), &mut solver);
+        let solver = ExplicitRungeKutta::dopri5();
+        let solution = model.solve(T0, TF, DT, State::default(), solver);
 
         assert!(solution.is_ok());
     }
@@ -334,8 +334,8 @@ mod tests {
             .freq(0.02)
             .bbb_transport(0.7)
             .build()?;
-        let mut solver = ExplicitRungeKutta::dopri5();
-        let solution = model.solve(T0, TF, DT, State::default(), &mut solver);
+        let solver = ExplicitRungeKutta::dopri5();
+        let solution = model.solve(T0, TF, DT, State::default(), solver);
 
         assert!(solution.is_ok());
         Ok(())
@@ -345,8 +345,8 @@ mod tests {
     #[test]
     fn dataframe_conversion() -> Result<(), PolarsError> {
         let model = Model::default();
-        let mut solver = ExplicitRungeKutta::dopri5();
-        let solution = model.solve(T0, TF, DT, State::default(), &mut solver);
+        let solver = ExplicitRungeKutta::dopri5();
+        let solution = model.solve(T0, TF, DT, State::default(), solver);
 
         assert!(solution.is_ok());
         let unwrapped_solution = solution.unwrap();

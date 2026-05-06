@@ -1,0 +1,10 @@
+{
+    "lsp": {
+        "rust-analyzer": {
+            "binary": {
+                "path": "nix",
+                "arguments": ["develop", "-c", "rust-analyzer"]
+            }
+        }
+    }
+}

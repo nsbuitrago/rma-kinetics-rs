@@ -1221,7 +1221,7 @@ checksum = "7a2d987857b319362043e95f5353c0535c1f58eec5336fdfcf626430af7def58"
 
 [[package]]
 name = "rma-kinetics"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "derive_builder",
  "differential-equations",
@@ -1237,7 +1237,7 @@ dependencies = [
 
 [[package]]
 name = "rma-kinetics-derive"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "quote",
  "syn",

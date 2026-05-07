@@ -6,3 +6,9 @@ pub struct Observation {
     pub plasma_rma: f64,
     pub weight: Option<f64>,
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct Cotangent {
+    pub time: f64,
+    pub value: f64,
+}

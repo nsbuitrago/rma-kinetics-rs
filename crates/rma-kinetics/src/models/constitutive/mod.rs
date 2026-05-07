@@ -35,6 +35,7 @@
 //! ```
 
 pub mod erasable;
+pub mod inference;
 pub mod stochastic;
 
 use nalgebra::{Matrix2, Matrix3x2, SVector};
@@ -51,7 +52,7 @@ use rma_kinetics_derive::Solve;
 
 use crate::{
     impl_solution_access_basic_rma,
-    inference::{DEFAULT_WEIGHT, Observation},
+    inference::{Cotangent, DEFAULT_WEIGHT, Observation},
 };
 
 #[cfg(any(feature = "polars-native", feature = "polars-wasm"))]
@@ -319,6 +320,7 @@ impl AdjointModel {
     /// For this model we keep is simple and use a relatively dense time grid to
     /// avoid having to use checkpointing and re-solve the forward pass during
     /// the adjoint solve.
+    /// FIXME: consider calling interpolate_plasma_rma to reduce duplication.
     pub fn forward(&self, t: f64) -> State<f64> {
         let times = &self.forward_solution.t;
         let states = &self.forward_solution.y;
@@ -414,6 +416,91 @@ impl AdjointModel {
         }
 
         Ok(full_solution)
+    }
+
+    /// Solve the adjoint ODE for a vector-Jacobian product.
+    ///
+    /// `cotangents` are plasma-output cotangents: each value is
+    /// `d scalar / d plasma_rma(time)`. The slice may be sorted in-place and
+    /// duplicate times are summed into a single adjoint jump.
+    pub fn solve_vjp<S>(
+        &self,
+        tf: f64,
+        t0: f64,
+        init_state: AdjointState,
+        cotangents: &mut [Cotangent],
+        solver_factory: impl Fn() -> S,
+    ) -> Result<SVector<f64, 3>, differential_equations::error::Error<f64, AdjointState>>
+    where
+        S: OrdinaryNumericalMethod<f64, AdjointState> + Interpolation<f64, AdjointState>,
+    {
+        cotangents.sort_by(|a, b| {
+            a.time
+                .partial_cmp(&b.time)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        cotangents.reverse();
+
+        let mut current_time = tf;
+        let mut current_state = init_state;
+        let mut full_solution = Solution::new();
+
+        full_solution.t.push(current_time);
+        full_solution.y.push(current_state);
+
+        let mut i = 0;
+        while i < cotangents.len() {
+            let cotangent_time = cotangents[i].time;
+
+            if cotangent_time < t0 || cotangent_time > tf {
+                return Err(differential_equations::error::Error::BadInput {
+                    msg: "cotangent time out of bounds".to_string(),
+                });
+            }
+
+            let mut jump = SVector::<f64, 2>::zeros();
+
+            while i < cotangents.len() && cotangents[i].time == cotangent_time {
+                jump += SVector::<f64, 2>::new(0.0, cotangents[i].value);
+                i += 1;
+            }
+
+            if cotangent_time < current_time {
+                let segment = IVP::ode(self, current_time, cotangent_time, current_state)
+                    .method(solver_factory())
+                    .solve()?;
+
+                current_state = *segment.y.last().unwrap();
+                append_segment(&mut full_solution, segment);
+                current_time = cotangent_time;
+            }
+
+            apply_jump(&mut current_state, jump);
+            push_state(&mut full_solution, current_time, current_state);
+        }
+
+        if current_time > t0 {
+            let segment = IVP::ode(self, current_time, t0, current_state)
+                .method(solver_factory())
+                .solve()?;
+
+            current_state = *segment.y.last().unwrap();
+            append_segment(&mut full_solution, segment);
+        }
+
+        if full_solution.t.last().is_some_and(|t| *t == t0) {
+            *full_solution.y.last_mut().unwrap() = current_state;
+        } else {
+            full_solution.t.push(t0);
+            full_solution.y.push(current_state);
+        }
+
+        let final_adjoint = full_solution.y.last().unwrap();
+        Ok(SVector::<f64, 3>::new(
+            final_adjoint[2],
+            final_adjoint[3],
+            final_adjoint[4],
+        ))
     }
 
     fn observation_jump(&self, obs: &Observation) -> SVector<f64, 2> {
@@ -569,13 +656,8 @@ mod tests {
 
         let model = Model::default();
         let params = model.get_parameters();
-        let forward_solution = model.solve(
-            T0,
-            TF,
-            DT,
-            State::zeros(),
-            ExplicitRungeKutta::dopri5(),
-        )?;
+        let forward_solution =
+            model.solve(T0, TF, DT, State::zeros(), ExplicitRungeKutta::dopri5())?;
 
         let adjoint_model = AdjointModel::new(params, forward_solution);
         let init_adjoint_state = AdjointState::zeros();
@@ -615,21 +697,13 @@ mod tests {
         )?;
 
         let final_adjoint = adjoint_solution.y.last().unwrap();
-        let adjoint_gradient = SVector::<f64, 3>::new(
-            final_adjoint[2],
-            final_adjoint[3],
-            final_adjoint[4],
-        );
+        let adjoint_gradient =
+            SVector::<f64, 3>::new(final_adjoint[2], final_adjoint[3], final_adjoint[4]);
 
         let loss = |params: SVector<f64, 3>| -> Result<f64, Box<dyn std::error::Error>> {
             let perturbed_model = Model::new(params[0], params[1], params[2]);
-            let solution = perturbed_model.solve(
-                T0,
-                TF,
-                DT,
-                State::zeros(),
-                ExplicitRungeKutta::dopri5(),
-            )?;
+            let solution =
+                perturbed_model.solve(T0, TF, DT, State::zeros(), ExplicitRungeKutta::dopri5())?;
 
             let loss = observations_for_fd
                 .iter()

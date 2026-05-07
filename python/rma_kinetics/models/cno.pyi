@@ -14,7 +14,7 @@ class Model:
     """
     def __init__(
         self,
-        doses: List["Dose"] = ...,
+        doses: List["CnoDose"] = ...,
         cno_absorption: float = 23.94,
         cno_elimination: float = 5.51e-2,
         cno_reverse_metabolism: float = 1.44,
@@ -67,7 +67,7 @@ class State:
     @brain_clz.setter
     def brain_clz(self, value: float) -> None: ...
 
-class Dose:
+class CnoDose:
     """Defines a CNO dose given an amount in mg and administration time."""
 
     def __init__(self, mg: float, time: float) -> None: ...
@@ -89,4 +89,4 @@ def create_cno_schedule(
     start_time: float,
     repeat: Optional[int] = None,
     interval: Optional[float] = None,
-) -> List[Dose]: ...
+) -> List[CnoDose]: ...

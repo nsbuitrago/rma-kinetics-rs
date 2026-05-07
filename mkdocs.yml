@@ -44,6 +44,8 @@ nav:
           - solvers/index.md
       - Solution:
           - solution/index.md
+      - Inference:
+          - inference/index.md
   - Application Docs:
       - app/index.md
       - app/desktop.md

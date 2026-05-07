@@ -113,6 +113,8 @@ mod py_oscillation {
     use super::models::oscillation::Model;
     #[pymodule_export]
     use super::models::oscillation::PyState;
+    #[pymodule_export]
+    use super::models::oscillation::StochasticModel;
 }
 
 /// TetOff model python module

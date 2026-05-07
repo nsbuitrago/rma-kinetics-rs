@@ -31,7 +31,11 @@
 //! println!("{:?}", solution.y);
 //! ```
 
+pub mod stochastic;
+pub use stochastic::StochasticModel;
+
 use crate::{impl_solution_access_basic_rma, solve::ApplyNoise};
+
 use derive_builder::Builder;
 use differential_equations::{
     derive::State as StateTrait,

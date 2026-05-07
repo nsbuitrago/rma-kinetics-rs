@@ -37,8 +37,6 @@
 pub mod erasable;
 pub mod inference;
 pub mod stochastic;
-
-use nalgebra::{Matrix2, Matrix3x2, SVector};
 pub use stochastic::StochasticModel;
 
 use derive_builder::Builder;
@@ -48,6 +46,7 @@ use differential_equations::{
     ode::{ODE, OrdinaryNumericalMethod},
     prelude::{Interpolation, Matrix, Solution},
 };
+use nalgebra::{Matrix2, Matrix3x2, SVector};
 use rma_kinetics_derive::Solve;
 
 use crate::{

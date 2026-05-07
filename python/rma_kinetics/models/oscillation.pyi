@@ -22,6 +22,23 @@ class Model:
         self, t0: float, tf: float, dt: float, init_state: State, solver: Solver
     ) -> Solution: ...
 
+class StochasticModel:
+    """Stochastic oscillating RMA expression model."""
+
+    def __init__(
+        self,
+        prod: float = 0.2,
+        freq: float = 0.01,
+        bbb_transport: float = 0.6,
+        deg: float = 0.007,
+        prod_noise: float = 0.5,
+        transport_noise: float = 0.1,
+        seed: int = 42,
+    ) -> None: ...
+    def solve(
+        self, t0: float, tf: float, dt: float, init_state: State, solver: Solver
+    ) -> Solution: ...
+
 class State:
     """Oscillation model state."""
 

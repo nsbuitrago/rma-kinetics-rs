@@ -31,7 +31,7 @@ fn rng_from_seed(seed: u64) -> StdRng {
     StdRng::seed_from_u64(seed)
 }
 
-#[cfg_attr(feature = "py", pyclass(name = "StochaticModel"))]
+#[cfg_attr(feature = "py", pyclass(name = "StochasticModel"))]
 #[cfg_attr(feature = "py", derive(StochasticPySolve))]
 #[cfg_attr(feature = "py", py_solve(variant = "Oscillation"))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

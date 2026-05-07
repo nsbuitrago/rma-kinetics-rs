@@ -6,5 +6,6 @@ _models = cast(Any, _models)
 
 Model = _models.oscillation.Model
 State = _models.oscillation.State
+StochasticModel = _models.oscillation.StochasticModel
 
-__all__ = ["Model", "State"]
+__all__ = ["Model", "State", "StochasticModel"]

@@ -23,6 +23,7 @@ serde = { workspace = true, optional = true }
 pyo3 = { workspace = true, optional = true }
 numpy = { workspace = true, optional = true }
 polars = { version = "0.52.0", optional = true, default-features = false, features = [] }
+nalgebra = "0.34.2"
 
 [features]
 py = ["dep:pyo3", "dep:numpy", "rma-kinetics-derive/py"]

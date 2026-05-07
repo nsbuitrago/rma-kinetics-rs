@@ -1225,6 +1225,7 @@ version = "0.2.0"
 dependencies = [
  "derive_builder",
  "differential-equations",
+ "nalgebra",
  "numpy",
  "polars",
  "pyo3",

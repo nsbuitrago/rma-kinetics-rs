@@ -34,6 +34,7 @@
 //! The returned solution is the [`Solution`](https://docs.rs/differential-equations/latest/differential_equations/solution/struct.Solution.html)
 //! struct from the `differential_equations` crate, where the `y` field is the corresponding `State` struct.
 
+pub mod inference;
 pub mod models;
 pub mod pk;
 mod solve;

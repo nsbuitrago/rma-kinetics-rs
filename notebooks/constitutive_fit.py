@@ -3,9 +3,7 @@ import marimo
 __generated_with = "0.23.5"
 app = marimo.App(width="medium")
 
-
-@app.cell
-def _():
+with app.setup:
     import numpy as np
     import pymc as pm
     import nutpie
@@ -27,26 +25,10 @@ def _():
 
     sb.set_theme(context="notebook", style="ticks", font="Arial")
     plt.rc("axes.spines", top=False, right=False)
-    return (
-        Dopri5,
-        Model,
-        PopulationInferenceOp,
-        PopulationInferenceSolver,
-        State,
-        az,
-        mo,
-        np,
-        os,
-        pl,
-        plt,
-        pm,
-        rlu_to_nm,
-        sb,
-    )
 
 
 @app.cell
-def _(mo):
+def _():
     dataset_id = mo.ui.radio(
         options=["CA1", "CP", "SN"], value="CA1", label="RMA Dataset"
     )
@@ -55,37 +37,34 @@ def _(mo):
 
 
 @app.cell
-def _(dataset_id, os):
+def _(dataset_id):
     data_dir = os.path.join(
         "notebooks", "data", "aav_rma_timecourse", dataset_id.value
     )
     return (data_dir,)
 
 
-@app.cell
-def _(os, pl, rlu_to_nm):
-    def get_df(dataset_id: str, data_dir: str):
-        raw_df = pl.read_csv(os.path.join(data_dir, "source.csv"))
-        df = rlu_to_nm(raw_df)
+@app.function
+def get_df(dataset_id: str, data_dir: str):
+    raw_df = pl.read_csv(os.path.join(data_dir, "source.csv"))
+    df = rlu_to_nm(raw_df)
 
-        summary_df = (
-            df.group_by("time")
-            .agg(
-                [
-                    pl.col("concentration").mean().alias("mean"),
-                    pl.col("concentration").std().alias("std"),
-                ]
-            )
-            .sort("time")
+    summary_df = (
+        df.group_by("time")
+        .agg(
+            [
+                pl.col("concentration").mean().alias("mean"),
+                pl.col("concentration").std().alias("std"),
+            ]
         )
+        .sort("time")
+    )
 
-        return df, summary_df
-
-    return (get_df,)
+    return df, summary_df
 
 
 @app.cell
-def _(data_dir, dataset_id, get_df, plt, sb):
+def _(data_dir, dataset_id):
     df, summary_df = get_df(dataset_id.value, data_dir)
     df_plot = df.unpivot(
         on=["rlu", "concentration"],
@@ -113,7 +92,7 @@ def _(data_dir, dataset_id, get_df, plt, sb):
 
 
 @app.cell
-def _(df, np, pl):
+def _(df):
     fit_df = (
         df.select(["mouse_id", "time", "concentration"])
         .with_columns(
@@ -138,17 +117,7 @@ def _(df, np, pl):
 
 
 @app.cell
-def _(
-    PopulationInferenceOp,
-    PopulationInferenceSolver,
-    State,
-    fit_df,
-    n_mice,
-    n_obs,
-    np,
-    obs_plasma_rma,
-    pm,
-):
+def _(fit_df, n_mice, n_obs, obs_plasma_rma):
     inference_solver = PopulationInferenceSolver(
         mouse_id=fit_df["mouse_id"].to_numpy().astype(int),
         obs_time=fit_df["time"].to_numpy(),
@@ -227,7 +196,7 @@ def _(
 
 
 @app.cell
-def _(az, idata):
+def _(idata):
     summary = az.summary(
         idata,
         var_names=[
@@ -242,7 +211,7 @@ def _(az, idata):
 
 
 @app.cell
-def _(az, data_dir, idata, os, plt):
+def _(data_dir, idata):
     az.plot_trace(
         idata,
         var_names=[
@@ -258,18 +227,7 @@ def _(az, data_dir, idata, os, plt):
 
 
 @app.cell
-def _(
-    az,
-    data_dir,
-    fit_df,
-    mouse_id,
-    n_mice,
-    np,
-    obs_plasma_rma,
-    obs_time,
-    plt,
-    ppc,
-):
+def _(data_dir, fit_df, mouse_id, n_mice, obs_plasma_rma, obs_time, ppc):
     y_ppc = np.asarray(ppc.posterior_predictive["y"], dtype=float)
     y_ppc_samples = y_ppc.reshape(-1, y_ppc.shape[-1])
     y_mean = y_ppc_samples.mean(axis=0)
@@ -302,7 +260,7 @@ def _(
 
 
 @app.cell
-def _(Dopri5, Model, State, az, idata, n_mice, np, plt, summary_df):
+def _(idata, n_mice, summary_df):
     log_prod_samples = idata.posterior["log_prod_mouse"].values
     log_bbb_samples = idata.posterior["log_bbb"].values
     log_deg_samples = idata.posterior["log_deg"].values
@@ -352,7 +310,7 @@ def _(Dopri5, Model, State, az, idata, n_mice, np, plt, summary_df):
 
 
 @app.cell
-def _(data_dir, np, os, pop_plasma_rma, pop_plasma_rma_hdi):
+def _(data_dir, pop_plasma_rma, pop_plasma_rma_hdi):
     np.save(os.path.join(data_dir, "predicted_mean.npy"), pop_plasma_rma)
     np.save(os.path.join(data_dir, "hdi.npy"), pop_plasma_rma_hdi)
     return

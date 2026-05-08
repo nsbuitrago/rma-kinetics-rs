@@ -1,14 +1,14 @@
 import marimo
 
-__generated_with = "0.20.4"
+__generated_with = "0.23.5"
 app = marimo.App(width="medium")
 
 
 @app.cell
 def _():
     import marimo as mo
-    from rma_kinetics.models.oscillation import Model, State
-    from rma_kinetics.solvers import Dopri5
+    from rma_kinetics.models.oscillation import Model, StochasticModel, State
+    from rma_kinetics.solvers import Dopri5, RungeKutta4
     from jax import config as jax_config, numpy as jnp, random
     from jax.scipy.signal import welch
     from SALib.sample import latin
@@ -26,7 +26,9 @@ def _():
     return (
         Dopri5,
         Model,
+        RungeKutta4,
         State,
+        StochasticModel,
         data_dir,
         jnp,
         latin,
@@ -468,9 +470,9 @@ def _(apply_noise, jnp, welch):
 
 @app.cell
 def _(
-    Dopri5,
-    Model,
+    RungeKutta4,
     State,
+    StochasticModel,
     data_dir,
     freq_recovery_inner,
     init_state_f_recovery,
@@ -494,7 +496,7 @@ def _(
             "t0": 0,
             "dt": 1 / fs,
             "init_state": init_state_f_recovery,
-            "solver": Dopri5(),
+            "solver": RungeKutta4(dt0=0.1, max_steps=20000),
         }
 
         markers = ["s", "^", "d", "o"]
@@ -509,7 +511,7 @@ def _(
                     random.key(i * 10_000 + int(float(target_freq) * 1_000_000)),
                     num=500,
                 )
-                model = Model(max_rma_prod_rate, target_freq, rma_rt_rate, deg_rate)
+                model = StochasticModel(max_rma_prod_rate, target_freq, rma_rt_rate, deg_rate, prod_noise=0.25)
                 simulation_config["tf"] = n_cycles // float(target_freq)
                 recovery = freq_recovery_inner(
                     model,
@@ -535,7 +537,7 @@ def _(
 
             recovery_df.write_parquet(
                 os.path.join(
-                    data_dir, f"202604_freq_recovery_deg_rate_{deg_rate}.parquet"
+                    data_dir, f"202604_freq_recovery_deg_rate_{deg_rate}_stochastic_prod_noise_0.25.parquet"
                 )
             )
             plt.plot(target_freqs, percent_freq_recovery, marker=markers[i])
@@ -545,7 +547,7 @@ def _(
             # plt.legend(["100", "50", "25", "12.5"], title="RMA Half-Life (hr)", frameon=False)
             plt.tight_layout()
             sb.despine()
-            plt.savefig(os.path.join(data_dir, "202604_freq_recovery_all.svg"))
+            plt.savefig(os.path.join(data_dir, "202604_freq_recovery_all_stochastic_prod_noise_0.25.svg"))
             plt.gca()
 
     freq_recovery()

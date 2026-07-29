@@ -13,7 +13,7 @@ name = "rma_kinetics"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-differential-equations = { workspace = true }
+differential-equations = { workspace = true, features = ["nalgebra"] }
 thiserror = { workspace = true }
 derive_builder = { workspace = true }
 rand = { workspace = true }

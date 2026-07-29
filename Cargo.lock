@@ -291,6 +291,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d59c6f4160bf75916dd69b58f6323171dd22e2e4a68cf7e31b1b2bf54b7433a"
 dependencies = [
  "differential-equations-derive",
+ "nalgebra",
  "simba",
 ]
 

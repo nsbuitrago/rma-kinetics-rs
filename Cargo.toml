@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Nicolas Buitrago <mail@nsbuitrago.xyz>"]
 license = "MIT"
 description = "RMA Kinetic Models"
@@ -12,13 +12,13 @@ homepage = "https://github.com/nsbuitrago/rma-kinetics-rs"
 edition = "2024"
 
 [workspace.dependencies]
-differential-equations = { git = "https://github.com/nsbuitrago/differential-equations", version = "0.5.3", branch = "master" }
-pyo3 = "0.27.0"
-numpy = "0.27.0"
-thiserror = "2.0.17"
+differential-equations = { git = "https://github.com/nsbuitrago/differential-equations", version = "5.3", branch = "main" }
+pyo3 = "0.27.2"
+numpy = "0.27.1"
+thiserror = "2.0.19"
 derive_builder = "0.20.2"
-rand = "0.9.3"
+rand = "0.9.5"
 rand_distr = "0.5.1"
-serde = { version = "1.0.228", features = ["derive"] }
-rma-kinetics = { version = "0.2.0", path = "crates/rma-kinetics" }
-rma-kinetics-derive = { version = "0.2.0", path = "crates/rma-kinetics-derive" }
+serde = { version = "1.0.229", features = ["derive"] }
+rma-kinetics = { version = "0.2.1", path = "crates/rma-kinetics" }
+rma-kinetics-derive = { version = "0.2.1", path = "crates/rma-kinetics-derive" }

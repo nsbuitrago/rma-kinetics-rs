@@ -59,7 +59,8 @@ pub fn validate_unique_dose_times<D: ScheduledDose>(doses: &[D]) -> Result<(), E
 }
 
 /// Custom solout for applying scheduled state updates and evenly-spaced output points.
-pub struct DoseApplyingSolout<S: StateTrait<f64> + Clone, U: ScheduledStateUpdate<S> + Clone> {
+pub struct DoseApplyingSolout<S: StateTrait<f64> + Clone + Copy, U: ScheduledStateUpdate<S> + Clone>
+{
     updates: Vec<U>,
     t0: f64,
     tf: f64,
@@ -70,7 +71,9 @@ pub struct DoseApplyingSolout<S: StateTrait<f64> + Clone, U: ScheduledStateUpdat
     _phantom: std::marker::PhantomData<S>,
 }
 
-impl<S: StateTrait<f64> + Clone, U: ScheduledStateUpdate<S> + Clone> DoseApplyingSolout<S, U> {
+impl<S: StateTrait<f64> + Clone + Copy, U: ScheduledStateUpdate<S> + Clone>
+    DoseApplyingSolout<S, U>
+{
     pub fn new(mut updates: Vec<U>, t0: f64, tf: f64, dt: f64) -> Self {
         let direction = (tf - t0).signum();
         updates.sort_by(|a, b| a.time().total_cmp(&b.time()));
@@ -86,7 +89,7 @@ impl<S: StateTrait<f64> + Clone, U: ScheduledStateUpdate<S> + Clone> DoseApplyin
         }
     }
 
-    fn get_pending_updates<I: Interpolation<f64, S>>(
+    fn get_pending_updates<I: Interpolation<f64, S> + ?Sized>(
         &mut self,
         t_curr: f64,
         t_prev: f64,
@@ -123,7 +126,7 @@ impl<S: StateTrait<f64> + Clone, U: ScheduledStateUpdate<S> + Clone> DoseApplyin
     }
 }
 
-impl<S: Clone + StateTrait<f64>, U: ScheduledStateUpdate<S> + Clone> Solout<f64, S>
+impl<S: Clone + Copy + StateTrait<f64>, U: ScheduledStateUpdate<S> + Clone> Solout<f64, S>
     for DoseApplyingSolout<S, U>
 {
     fn solout<I>(
@@ -136,7 +139,7 @@ impl<S: Clone + StateTrait<f64>, U: ScheduledStateUpdate<S> + Clone> Solout<f64,
         solution: &mut Solution<f64, S>,
     ) -> ControlFlag<f64, S>
     where
-        I: Interpolation<f64, S>,
+        I: Interpolation<f64, S> + ?Sized,
     {
         let pending_update = self.get_pending_updates(t_curr, t_prev, y_curr, interpolator);
         let next_output_time = match self.last_output_time {

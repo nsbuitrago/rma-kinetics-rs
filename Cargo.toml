@@ -12,7 +12,7 @@ homepage = "https://github.com/nsbuitrago/rma-kinetics-rs"
 edition = "2024"
 
 [workspace.dependencies]
-differential-equations = { git = "https://github.com/nsbuitrago/differential-equations", version = "5.3", branch = "main" }
+differential-equations = "0.6.1"
 pyo3 = "0.27.2"
 numpy = "0.27.1"
 thiserror = "2.0.19"
